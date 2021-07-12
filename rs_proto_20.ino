@@ -1,6 +1,6 @@
 /*
-  rs_proto_20.ino
-  20210131
+rs_proto_20.ino
+20210131
 
 */
 
@@ -32,7 +32,7 @@ Adafruit_LSM303_Mag_Unified mag = Adafruit_LSM303_Mag_Unified(12345); // assign 
 #define GPSSerial Serial1
 Adafruit_GPS GPS(&GPSSerial); // Connect to the GPS on the hardware port
 #define GPSECHO false
-uint32_t timer = millis();     
+uint32_t timer = millis();
 boolean usingInterrupt = false;
 
 // define SPI pins:
@@ -78,23 +78,24 @@ uint8_t user_year = 2021;
 void setup() {
 
   // add in pin func for  STATE MACHINE
-  pinMode(gpsState, OUTPUT);
+  // pinMode(gpsState, OUTPUT);
+  pinMode(gpsPin, OUTPUT);
 
 
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
   //while (!Serial) {} // wait for serial port to connect. Needed for native USB port only
-  
+
   // initialize flash and SD memory
   //init_flash();
-  
+
   init_SD();
 
 
   // GET GPS FIX HERE ***
   init_GPS();
 
-  
+
   // Set RTC Time: <eventually from GPS>
   init_RTC();
   alarm_one();
@@ -108,8 +109,8 @@ void setup() {
 void loop() {
 
   unsigned long currentMillis = millis();
- 
-  if((gpsState == HIGH) && (currentMillis - previousMillis >= OnTime)) // pgs turn-off timer
+
+  if((gpsState == HIGH) && (currentMillis - previousMillis >= OnTime)) // gps turn-off timer
   {
     Serial.println('gps on, turning off');
 
@@ -119,14 +120,14 @@ void loop() {
   }
   else if ((gpsState == LOW) && (currentMillis - previousMillis >= OffTime)) // gps turn-on timer
   {
-   Serial.println('gps off, turning on');
+    Serial.println('gps off, turning on');
 
     gpsState = HIGH;  // turn it on
     previousMillis = currentMillis;   // Remember the time
     digitalWrite(gpsPin, gpsState);   // Update the actual LED
   }
- 
-  
+
+
   if (gpsState == HIGH) // update RTC only when gps is on
   {
     gps_to_rtc();
@@ -142,11 +143,11 @@ void loop() {
 
 void init_flash(){
 
-// Initialize flash and SD
-SerialFlash.begin(FLASH_PIN);
-SerialFlash.wakeup();
+  // Initialize flash and SD
+  SerialFlash.begin(FLASH_PIN);
+  SerialFlash.wakeup();
 
- // If connection to flash fails
+  // If connection to flash fails
   if (!SerialFlash.begin(FLASH_PIN)) {
 
     // print error
@@ -175,7 +176,7 @@ SerialFlash.wakeup();
 void init_SD(){
 
   delay(100);
- // set SS pins high for turning off radio
+  // set SS pins high for turning off radio
   pinMode(RADIO_PIN, OUTPUT);
   delay(50);
   digitalWrite(RADIO_PIN, HIGH);
@@ -187,13 +188,13 @@ void init_SD(){
   Serial.println("SD init -->");
   SD.begin(SD_PIN);
   delay(200);
-if (!SD.begin(SD_PIN)) {
+  if (!SD.begin(SD_PIN)) {
     Serial.println("initialization failed!");
     while (1);
   }
-else {
-	Serial.println("SD initialization GREEN");
-}
+  else {
+    Serial.println("SD initialization GREEN");
+  }
 
 } //init_SD() <END>
 
@@ -201,17 +202,17 @@ else {
 
 void init_RADIO(){
 
-    delay(100);
-   // set SS pins high for turning off radio
-    pinMode(RADIO_PIN, OUTPUT);
-    delay(50);
-    digitalWrite(RADIO_PIN, LOW);
-    delay(50);
-    pinMode(SD_PIN, OUTPUT);
-    delay(50);
-    digitalWrite(SD_PIN, HIGH);
-    delay(100);
-    Serial.println("init_radio -->");
+  delay(100);
+  // set SS pins high for turning off radio
+  pinMode(RADIO_PIN, OUTPUT);
+  delay(50);
+  digitalWrite(RADIO_PIN, LOW);
+  delay(50);
+  pinMode(SD_PIN, OUTPUT);
+  delay(50);
+  digitalWrite(SD_PIN, HIGH);
+  delay(100);
+  Serial.println("init_radio -->");
 } // init_RADIO <END>
 
 //----------------------------------------
@@ -219,7 +220,7 @@ void init_RADIO(){
 void init_LORA(){
   LoRa.setPins(5,3,2);
   LoRa.setSPIFrequency(9600);
-  
+
   //while (!Serial){};
 
   Serial.println("LoRa Sender");
@@ -235,7 +236,7 @@ void init_LORA(){
 
 void send_LORA(String _msgData){
 
-//setup packet:
+  //setup packet:
   LoRa.beginPacket();
   LoRa.print(_msgData);
   LoRa.endPacket();
@@ -246,12 +247,12 @@ void send_LORA(String _msgData){
 }
 
 void init_RTC(){
-     // init the RTC
-    rtc.begin();
-    rtc.setTime(user_hour, user_minute, user_sec);
-    rtc.setDate(user_day, user_month, user_year);
-    //rtc.setTime(15, 0, 0);
-    //rtc.setDate(5, 2, 2020);
+  // init the RTC
+  rtc.begin();
+  rtc.setTime(user_hour, user_minute, user_sec);
+  rtc.setDate(user_day, user_month, user_year);
+  //rtc.setTime(15, 0, 0);
+  //rtc.setDate(5, 2, 2020);
 
 } // init_RTC() <END>
 
@@ -268,8 +269,8 @@ void alarm_one() {
 void alarm_one_routine() {
   Serial.println("alarm");
 
-// put interval events here, most likely, save to SD & radio send
-// this is set in the setup up function, so the main loop is free
+  // put interval events here, most likely, save to SD & radio send
+  // this is set in the setup up function, so the main loop is free
   read_p_sensor();
 
 } // alarm_one_routine <END>
@@ -301,29 +302,29 @@ void read_p_sensor(){
   dataString += ",";
 
   // read all voltages and append to the string:
-  for (int analogPin = 0; analogPin < numSensors; analogPin++) 
+  for (int analogPin = 0; analogPin < numSensors; analogPin++)
   {
     int sensor = analogRead(analogPin);
-    dataString += String(sensor); 
-    
-    if (analogPin < (numSensors - 1)) 
+    dataString += String(sensor);
+
+    if (analogPin < (numSensors - 1))
     {
       dataString += ",";
     }
   }
   //delay(Dspeed); // Dspeed set by user ** superceded by millis() control timer
-  
+
 
   Serial.println(dataString); // Print to Serial Terminal
-  
+
   // print to SD card, make sure SD card is on:
   init_SD();
 
   File dataFile = SD.open(fname, FILE_WRITE); // set up file for writing
-  if (dataFile) 
+  if (dataFile)
   { // if the file is available, write to it:
     dataFile.println(dataString);
-    dataFile.close();  
+    dataFile.close();
   }
 
   // shut of SD and init Radio for data send:
@@ -340,7 +341,7 @@ void read_p_sensor(){
 
 String gen_timestamp(){
   String _time = "";
-  //RTC month:  
+  //RTC month:
   uint8_t month_u = rtc.getMonth();
   _time += String(month_u);
   _time += ",";
@@ -381,48 +382,48 @@ String get_temp() {
   byte data[12];
   byte addr[8];
   float celsius;
-  
+
   if ( !ds.search(addr)) {
     ds.reset_search();
     delay(250);
     //return;
   }
-  
+
 
   // if (OneWire::crc8(addr, 7) != addr[7]) {
   //     //Serial.println("CRC is not valid!");
   //     //return;
   // }
- 
+
   // the first ROM byte indicates which chip
   switch (addr[0]) {
     case 0x10:
     //  Serial.println("  Chip = DS18S20");  // or old DS1820
-      type_s = 1;
-      break;
+    type_s = 1;
+    break;
     case 0x28:
     //  Serial.println("  Chip = DS18B20");
-      type_s = 0;
-      break;
+    type_s = 0;
+    break;
     case 0x22:
-     // Serial.println("  Chip = DS1822");
-      type_s = 0;
-      break;
+    // Serial.println("  Chip = DS1822");
+    type_s = 0;
+    break;
     default:
-      break;
-      // Serial.println("Device is not a DS18x20 family device.");
-      //return;
-  } 
+    break;
+    // Serial.println("Device is not a DS18x20 family device.");
+    //return;
+  }
 
   ds.reset();
   ds.select(addr);
   ds.write(0x44, 1);        // start conversion, with parasite power on at the end
-  
+
   delay(1000);     // maybe 750ms is enough, maybe not
   // we might do a ds.depower() here, but the reset will take care of it.
-  
+
   present = ds.reset();
-  ds.select(addr);    
+  ds.select(addr);
   ds.write(0xBE);         // Read Scratchpad
 
   //Serial.print("  Data = ");
@@ -457,7 +458,7 @@ String get_temp() {
     //// default is 12 bit resolution, 750 ms conversion time
   }
   celsius = (float)raw / 16.0;
-  
+
   //char celsius_string[10] = "";
   //dtostr(celsius, 4,6, celsius_string);
 
@@ -468,24 +469,24 @@ String get_temp() {
 //--------------------------------
 
 void init_GPS()
-  {
+{
   // 9600 baud is the default rate for the Ultimate GPS
-  
+
   GPSSerial.begin(9600);
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY); // set to only location, time, fix responses
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); // 1 hz collection interval
- // useInterrupt(true); // setting interrupt for predefined func above (?)
+  // useInterrupt(true); // setting interrupt for predefined func above (?)
 
-  }// init_GPS() <END>
+}// init_GPS() <END>
 
 
 //----------------------------
 
 
-void print2digits(int number) 
+void print2digits(int number)
 {
 
-  if (number < 10) 
+  if (number < 10)
   {
 
     Serial.print("0"); // print a 0 before if the number is < than 10
@@ -496,81 +497,81 @@ void print2digits(int number)
 } // print2digits() <END>
 
 //---------------------------
-void gps_to_rtc() 
+void gps_to_rtc()
 {
-  
 
-  if (! usingInterrupt) 
-    {
-      // read data from the GPS in the 'main loop'
-      char c = GPS.read();
-      // if you want to debug, this is a good time to do it!
-      //if (GPSECHO)
-        //if (c) Serial.print(c);  
-    }
-  
+
+  if (! usingInterrupt)
+  {
+    // read data from the GPS in the 'main loop'
+    char c = GPS.read();
+    // if you want to debug, this is a good time to do it!
+    //if (GPSECHO)
+    //if (c) Serial.print(c);
+  }
+
   // if a sentence is received, we can check the checksum, parse it...
-  if (GPS.newNMEAreceived()) 
-    {
-    
-      if (!GPS.parse(GPS.lastNMEA()))
-        {   // this also sets the newNMEAreceived() flag to false
-        return;  // we can fail to parse a sentence in which case we should just wait for another
-        }
-      else
-      {
-        uint8_t gps_yr;
-        uint8_t gps_month;
-        uint8_t gps_day;
-        uint8_t gps_hr;
-        uint8_t gps_min;
-        uint8_t gps_sec;
-        
-        gps_yr    = GPS.year;
-        gps_month = GPS.month;
-        gps_day   = GPS.day;
-        gps_hr    = GPS.hour;
-        gps_min   = GPS.minute;
-        gps_sec   = GPS.seconds;
-  
-        rtc.setTime(gps_hr, gps_min, gps_sec);
-        rtc.setDate(gps_day, gps_month, gps_yr);  
-       }
+  if (GPS.newNMEAreceived())
+  {
 
-      // print
-
-      // Print date...
-
-      print2digits(rtc.getDay());
-
-      Serial.print("/");
-
-      print2digits(rtc.getMonth());
-
-      Serial.print("/");
-
-      print2digits(rtc.getYear());
-
-      Serial.print(" ");
-
-      // ...and time
-
-      print2digits(rtc.getHours());
-
-      Serial.print(":");
-
-      print2digits(rtc.getMinutes());
-
-      Serial.print(":");
-
-      print2digits(rtc.getSeconds());
-
-      Serial.println();
+    if (!GPS.parse(GPS.lastNMEA()))
+    {        // this also sets the newNMEAreceived() flag to false
+      return;  // we can fail to parse a sentence in which case we should just wait for another
     }
+    else
+    {
+      uint8_t gps_yr;
+      uint8_t gps_month;
+      uint8_t gps_day;
+      uint8_t gps_hr;
+      uint8_t gps_min;
+      uint8_t gps_sec;
+
+      gps_yr    = GPS.year;
+      gps_month = GPS.month;
+      gps_day   = GPS.day;
+      gps_hr    = GPS.hour;
+      gps_min   = GPS.minute;
+      gps_sec   = GPS.seconds;
+
+      rtc.setTime(gps_hr, gps_min, gps_sec);
+      rtc.setDate(gps_day, gps_month, gps_yr);
+    }
+
+    // print
+
+    // Print date...
+
+    print2digits(rtc.getDay());
+
+    Serial.print("/");
+
+    print2digits(rtc.getMonth());
+
+    Serial.print("/");
+
+    print2digits(rtc.getYear());
+
+    Serial.print(" ");
+
+    // ...and time
+
+    print2digits(rtc.getHours());
+
+    Serial.print(":");
+
+    print2digits(rtc.getMinutes());
+
+    Serial.print(":");
+
+    print2digits(rtc.getSeconds());
+
+    Serial.println();
+  }
 
   // if millis() or timer wraps around, we'll just reset it
   if (timer > millis())  timer = millis();
 
-static bool second_time_round=false;
+  static bool second_time_round=false;
 
 } // gps_to_rtc() <END>
