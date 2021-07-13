@@ -20,18 +20,21 @@
 #include <SD.h>
 #include <LoRa.h>
 
-#define Serial SerialUSB // for RS board
+
+#define Serial SerialUSB // for RocketScream board
 
 
-//Tempsnr
+//Temp sensor
 #include <OneWire.h>
-OneWire  ds(7);  // on pin 10 (a 4.7K resistor is necessary)
+#include <DallasTemperature.h>
+OneWire  ds(7);  // on pin 7 (a 4k7 resistor is necessary)
 
-//Magsnsr
+
+// compass/accelerometer
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_U.h>
-Adafruit_LSM303_Mag_Unified mag = Adafruit_LSM303_Mag_Unified(12345); // assign id
+Adafruit_LSM303_Mag_Unified compass = Adafruit_LSM303_Mag_Unified(12345); // assign id
 
 // GPS
 #include <Adafruit_GPS.h>
@@ -41,18 +44,22 @@ Adafruit_GPS GPS(&GPSSerial); // Connect to the GPS on the hardware port
 uint32_t timer = millis();
 uint8_t base_sec = 0;
 uint8_t sample_interval = 15;
+TODO:// what's this 'usingInterrupt'
 boolean usingInterrupt = false;
 
 // define SPI pins:
-const uint8_t SD_PIN = 10;
+TODO:// do we need SD_PIN for something?
+// const uint8_t SD_PIN = 10; // this pin isn't in use as the Piezo board is built
 const uint8_t RADIO_PIN = 5;
 const uint8_t FLASH_PIN = 4;
 
 // Other
-const int ledPin =  13;      // the number of the LED pin -- for diagnostic refs
+const int ledPin =  13; // the number of the LED pin -- for diagnostic refs
 String loopTemp; // temp looper
 String loopTemp_stor; // temp looper
-int gpsPin = 2; // set gps enable pin
+
+TODO:// deconflict pin 2
+int gpsPin = 2; // set gps enable pin. (Radio chip select is also on this pin. Conflict?)
 int gpsState = HIGH; // gps_state HIGH is on to start // high = on, low = off
 long OnTime = 3600500; //1hr in milliseconds, with an offset to not fall exactly on the minute 500 ms
 long OffTime = 82800500; // 23hr in milliseconds, with 500 ms offset
