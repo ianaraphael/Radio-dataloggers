@@ -11,47 +11,129 @@
 */
 
 
-/***** LIBRARIES & Startup Definitions******/
+/************ Libraries ************/
 
+// clock
 #include <RTCZero.h>
+
+// memory
 #include <SerialFlash.h>
-#include <SPI.h>
-#include <timestamp32bits.h>
 #include <SD.h>
-#include <LoRa.h>
 
-
-#define Serial SerialUSB // for RocketScream board
-
-
-//Temp sensor
+// sensors
+#include <Wire.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-OneWire  ds(7);  // on pin 7 (a 4k7 resistor is necessary)
+#include <Adafruit_Sensor.h>
 
+// radio
+// TODO: LORA or RH_RF95?
+#include <LoRa.h>
+#include <RH_RF95.h>
+
+
+// compass/gps
+#include <Adafruit_GPS.h>
+#include <Adafruit_LSM303_U.h>
+
+// other
+#include <SPI.h>
+#include <RHReliableDatagram.h>
+#include <timestamp.h>
+#include <timestamp32bits.h>
+#include <string>
+
+/************ macros & globals ************/
+
+/****** user set variables ******/
+
+/*!!!!!!!! impt: define self ID. Must be unique id for each logger !!!!!!!!*/
+#define SELF_ADDRESS 28 // address for self (distributed client/loggers)
+#define SERVER_ADDRESS 1 // address for receiver (central server/base stn.)
+const uint8_t NUM_TEMP_SENSORS = 5; // define the number of temp sensors
+
+int Dspeed = 5000; // Data collection interval (milliseconds)
+String tempFilename = "tempData_" + SELF_ADDRESS + ".txt"; // temp data storage file name on SD card
+String pingerFilename = "pingerData_" + SELF_ADDRESS + ".txt"; // pinger data storage file name on SD card
+
+int numSensors = 3;  // set number of sensors **COUNT the REFERENCE as a sensor** eg 3 sensors + ref = 4 sensors
+int protoID = 21; // SET Unique ID number for each prototype, does not have to be fixed number of characters, but unique required
+
+uint8_t user_hour = 12;
+uint8_t user_minute = 0;
+uint8_t user_sec = 0;
+uint8_t user_day = 0;
+uint8_t user_month = 1;
+uint8_t user_year = 2021;
+
+
+
+#define Serial SerialUSB // usb port
+#define pinger Serial // put the snow pinger on Serial port
+#define TEMP_BUS 12 // temp probe data line
+
+#define TEMP_POWER 6 // temp probe power
+#define PINGER_POWER 7 // snow pinger power
+
+#define RADIO_CS 5 // radio chip select
+#define RADIO_INT 2 // radio interrupt pin
+#define RADIO_FREQ 915.0 // radio frequency
+
+// define SPI pins:
+// const uint8_t SD_PIN = 10; // this pin isn't in use as the Piezo board is built
+const uint8_t FLASH_CS 4 // flash chip select
+
+// Sleep cycles
+int sleepCycles = 0; // track n of times we've slept. use to determine when to TX to base
+const int cycleMatch = 24; // n of sleep cycles (therefore n files gen'd) before we transmit
+int lastFile; // track the last file we sent so we know where to start on next round
+
+// data size defs
+const uint8_t pingerReadSize = 2;
+const uint8_t adcReadSize = 2;
+const uint8_t tempDataSize = 2;
+const uint8_t tempIDSize = 8;
+const uint8_t filenameSize = 12;
+
+// File stuff
+char* filenames[1000]; // array of pointers to hold filenames
+int writeBufSize = (tempDataSize * NUM_TEMP_SENSORS) + pingerReadSize + adcReadSize; // size of the buffer for writing data to file
+int readBufSize = (tempDataSize * NUM_TEMP_SENSORS) + (tempIDSize * NUM_TEMP_SENSORS) + filenameSize + pingerReadSize + adcReadSize + 3; // size of the buffer for reading data off of file
+int fileSi
+//File Setup
+String dataString = "";      // buffer storage variable
+File myFile;                 // fileholder name placeholder
+
+RTCZero rtc;  // initialize Real Time Clock Object
+int counter = 0; // LORA MESSAGE COUNTER
+
+/************ Instrumentation defs ************/
+
+// Radio
+RH_RF95 driver(RADIO_CS, RADIO_INT); // radio driver
+RHReliableDatagram manager(driver, SELF_ADDRESS); // delivery/receipt manager
+uint8_t messageBuf[RH_RF95_MAX_MESSAGE_LEN]; // buf for TX/RX handshake messages
+int shakeLimit = 5; // limit for nTimes to try handshake with server
+
+// Temp sensors
+// create oneWire object for temp probe comms
+OneWire oneWire(TEMP_BUS);
+// and create the Dallas temp object on top that we'll actually be working with
+DallasTemperature tempSensors(&oneWire);
+uint8_t tempAddrx[NUM_TEMP_SENSORS][8]; // temp probe addresses
+// OneWire  ds(7);  // on pin 7 (a 4k7 resistor is necessary) // this is holdover from Pat's code
 
 // compass/accelerometer
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_LSM303_U.h>
 Adafruit_LSM303_Mag_Unified compass = Adafruit_LSM303_Mag_Unified(12345); // assign id
 
 // GPS
-#include <Adafruit_GPS.h>
-#define GPSSerial Serial1
-Adafruit_GPS GPS(&GPSSerial); // Connect to the GPS on the hardware port
-#define GPSECHO false
+#define GPSSerial Serial1 // define Serial1 as GPS port
+Adafruit_GPS GPS(&GPSSerial); // Mount the GPS on its port
+#define GPSECHO false;
 uint32_t timer = millis();
 uint8_t base_sec = 0;
 uint8_t sample_interval = 15;
-TODO:// what's this 'usingInterrupt'
 boolean usingInterrupt = false;
-
-// define SPI pins:
-TODO:// do we need SD_PIN for something?
-// const uint8_t SD_PIN = 10; // this pin isn't in use as the Piezo board is built
-const uint8_t RADIO_PIN = 5;
-const uint8_t FLASH_PIN = 4;
 
 // Other
 const int ledPin =  13; // the number of the LED pin -- for diagnostic refs
@@ -65,31 +147,8 @@ long OnTime = 3600500; //1hr in milliseconds, with an offset to not fall exactly
 long OffTime = 82800500; // 23hr in milliseconds, with 500 ms offset
 unsigned long previousMillis = 0; // set state timer to 0 for init
 
-//File Setup
-String dataString = "";      // buffer storage variable
-File myFile;                 // fileholder name placeholder
 
-
-/* ********* GLOBALS*************  */
-RTCZero rtc;  // initialize Real Time Clock Object
-int counter = 0; // LORA MESSAGE COUNTER
-
-
-/* ********* USER-SET VARIABLES*************  */
-int Dspeed = 5000; // Data collection interval (milliseconds)
-String fname = "func.TXT"; // Data storage file name on SD card (8:3 protocal req)
-int numSensors = 3;  // set number of sensors **COUNT the REFERENCE as a sensor** eg 3 sensors + ref = 4 sensors
-int protoID = 21; // SET Unique ID number for each prototype, does not have to be fixed number of characters, but unique required
-uint8_t user_hour = 12;
-uint8_t user_minute = 0;
-uint8_t user_sec = 0;
-uint8_t user_day = 0;
-uint8_t user_month = 1;
-uint8_t user_year = 2021;
-
-
-
-/* ********* SETUP *************   <START> */
+/********** SETUP *************   <START> */
 void setup() {
 
   // add in pin func for  STATE MACHINE
@@ -158,11 +217,11 @@ void loop() {
 void init_flash(){
 
 // Initialize flash and SD
-SerialFlash.begin(FLASH_PIN);
+SerialFlash.begin(FLASH_CS);
 SerialFlash.wakeup();
 
  // If connection to flash fails
-  if (!SerialFlash.begin(FLASH_PIN)) {
+  if (!SerialFlash.begin(FLASH_CS)) {
 
     // print error
     Serial.println("Unable to access SPI Flash chip");

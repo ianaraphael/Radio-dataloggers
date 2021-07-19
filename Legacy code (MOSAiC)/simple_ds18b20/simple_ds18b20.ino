@@ -10,13 +10,15 @@
 
 #define Serial SerialUSB
 
+void(* resetFunc) (void) = 0;
+
 // Data wire is connected to the Arduino digital pin 12
 #define ONE_WIRE_BUS 12
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
 
-// Pass our oneWire reference to Dallas Temperature sensor 
+// Pass our oneWire reference to Dallas Temperature sensor
 DallasTemperature sensors(&oneWire);
 
 // Array to hold device addresses
@@ -37,21 +39,20 @@ void setup(void)
     sensors.setResolution(12);
   } else {
     Serial.println("Couldn't find sensor at address 0");
-    while (1);
+    resetFunc();
   }
-  
 }
 
 
-void loop(void){ 
+void loop(void){
   // Call sensors.requestTemperatures() to issue a global temperature and Requests to all devices on the bus
-  sensors.requestTemperatures(); 
+  sensors.requestTemperatures();
   Serial.print("Raw Values: ");
   Serial.print(sensors.getTemp(addr), BIN);
 
-  
+
   Serial.print(" - Celsius temperature: ");
-  Serial.print(sensors.getTempC(addr)); 
+  Serial.print(sensors.getTempC(addr));
   Serial.print(" - Celsius temperature by index: ");
   Serial.println(sensors.getTempCByIndex(0));
   delay(1000);

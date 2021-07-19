@@ -3,7 +3,7 @@
 
    Program for client snow temperature profile. Measure
    Temperature and snow height, transmit data to base station.
-   
+
    Ian Raphael 2019.12.08
    ianaraphael@gmail.com
 */
@@ -23,16 +23,16 @@
 /************ MACROS ************/
 #define Serial SerialUSB // usb port
 #define pinger Serial1 // snow pinger
-#define ONE_WIRE_BUS 12 // temp probe data line
-#define tempPower 6 // temp probe power
-#define pingerPower 7 // snow pinger power
+#define TEMP_BUS 12 // temp probe data line
+#define TEMP_POWER 6 // temp probe power
+#define PINGER_POWER 7 // snow pinger power
 
-#define CLIENT_ADDRESS 28 // address for sender (distributed client/loggers)
+#define SELF_ADDRESS 28 // address for sender (distributed client/loggers)
 
 #define SERVER_ADDRESS 1 // address for receiver (central server/base stn.)
-#define RFM95_CS 5 // radio pin
-#define RFM95_INT 2 // radio pin
-#define RF95_FREQ 915.0 // radio frequency
+#define RADIO_CS 5 // radio pin
+#define RADIO_INT 2 // radio pin
+#define RADIO_FREQ 915.0 // radio frequency
 
 
 /************ GLOBALS ************/
@@ -47,14 +47,14 @@ const byte month = 12;
 const byte year = 2019;
 
 // Temp sensors
-OneWire oneWire(ONE_WIRE_BUS); // oneWire object for temp probe coms
-DallasTemperature sensors(&oneWire); // temp probes coms
-const uint8_t numSensors = 5; // number of temp sensors
-uint8_t addr[numSensors][8]; // temp probe addresses
+OneWire oneWire(TEMP_BUS); // oneWire object for temp probe coms
+DallasTemperature tempSensors(&oneWire); // temp probes coms
+const uint8_t NUM_TEMP_SENSORS = 5; // number of temp sensors
+uint8_t tempAddrx[NUM_TEMP_SENSORS][8]; // temp probe addresses
 
 // Radio
-RH_RF95 driver(RFM95_CS, RFM95_INT); // radio driver
-RHReliableDatagram manager(driver, CLIENT_ADDRESS); // delivery/receipt manager
+RH_RF95 driver(RADIO_CS, RADIO_INT); // radio driver
+RHReliableDatagram manager(driver, SELF_ADDRESS); // delivery/receipt manager
 uint8_t messageBuf[RH_RF95_MAX_MESSAGE_LEN]; // buf for TX/RX handshake messages
 int shakeLimit = 5; // limit for nTimes to try handshake with server
 
@@ -72,9 +72,9 @@ const uint8_t filenameSize = 12;
 
 // File stuff
 char* filenames[1000]; // array of pointers to hold filenames
-int writeBufSize = (tempDataSize * numSensors) + pingerReadSize + adcReadSize; // size of the buffer for writing data to file
-int readBufSize = (tempDataSize * numSensors) + (tempIDSize * numSensors) + filenameSize + pingerReadSize + adcReadSize + 3; // size of the buffer for reading data off of file
-int fileSize = (tempDataSize * numSensors) + pingerReadSize + adcReadSize; // size of the file for holding data
+int writeBufSize = (tempDataSize * NUM_TEMP_SENSORS) + pingerReadSize + adcReadSize; // size of the buffer for writing data to file
+int readBufSize = (tempDataSize * NUM_TEMP_SENSORS) + (tempIDSize * NUM_TEMP_SENSORS) + filenameSize + pingerReadSize + adcReadSize + 3; // size of the buffer for reading data off of file
+int fileSize = (tempDataSize * NUM_TEMP_SENSORS) + pingerReadSize + adcReadSize; // size of the file for holding data
 
 
 
@@ -128,8 +128,8 @@ void loop() {
 
   // wake up the pinger
   // power up the probe
-  digitalWrite(pingerPower, HIGH);
-  digitalWrite(tempPower, HIGH);
+  digitalWrite(PINGER_POWER, HIGH);
+  digitalWrite(TEMP_POWER, HIGH);
 
   // and begin serial coms
   pinger.begin(9600);
@@ -140,16 +140,16 @@ void loop() {
 
   //temp read
   // ask sensor to query temp
-  sensors.requestTemperatures();
+  tempSensors.requestTemperatures();
 
   // declare an array to hold the temperatures
-  int16_t tempArray[numSensors];
+  int16_t tempArray[NUM_TEMP_SENSORS];
 
   // for every sensor
-  for (int i = 0; i < numSensors; i++) {
+  for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
 
     // get temp off of the sensor
-    int16_t temp = sensors.getTemp(addr[i]);
+    int16_t temp = tempSensors.getTemp(tempAddrx[i]);
 
     // stuff it into the array
     tempArray[i] = temp;
@@ -160,7 +160,7 @@ void loop() {
   byte writeBuf[writeBufSize];
 
   int i = 0;
-  while (i < 2 * numSensors) {
+  while (i < 2 * NUM_TEMP_SENSORS) {
 
     // write temps to buffer as high and low byte
     writeBuf[i] = highByte(tempArray[i / 2]);
@@ -258,30 +258,30 @@ void loop() {
       }
 
       // read in number of tempData
-      sendBuf[j] = (byte) numSensors;
+      sendBuf[j] = (byte) NUM_TEMP_SENSORS;
 
       // define k`
       int k = j + 1;
 
       // for every byte of data
-      for (j = k; j < k + (numSensors * tempDataSize) + pingerReadSize + adcReadSize; j++) {
+      for (j = k; j < k + (NUM_TEMP_SENSORS * tempDataSize) + pingerReadSize + adcReadSize; j++) {
 
         // read the data into the buffer
         sendBuf[j] = readBuf[j - k];
       }
 
       // read in the number of addresses
-      sendBuf[j] = numSensors;
+      sendBuf[j] = NUM_TEMP_SENSORS;
       j++;
 
       // for every address
-      for (int currAddr = 0; currAddr < numSensors; currAddr++) {
+      for (int currAddr = 0; currAddr < NUM_TEMP_SENSORS; currAddr++) {
 
         // for every byte
         for (int currByte = 0; currByte < 8; currByte++) {
 
           // read in the byte as a char
-          sendBuf[j] = (char) addr[currAddr][currByte];
+          sendBuf[j] = (char) tempAddrx[currAddr][currByte];
           j++;
         }
       }
@@ -297,7 +297,7 @@ void loop() {
           lastFile = 0;
         }
       }
-      
+
       // if we didn't
       else {
 
@@ -311,8 +311,8 @@ void loop() {
   SerialFlash.sleep();
   driver.sleep();
   oneWire.depower();
-  digitalWrite(pingerPower, LOW);
-  digitalWrite(tempPower, LOW);
+  digitalWrite(PINGER_POWER, LOW);
+  digitalWrite(TEMP_POWER, LOW);
   USBDevice.detach();
   rtc.standbyMode();
 }
@@ -365,7 +365,7 @@ void rtcInit() {
   rtc.setDate(day, month, year);
 
   // RTC alarm the minute of network ID, resulting in 1 hour sleep period
-  rtc.setAlarmMinutes(CLIENT_ADDRESS);
+  rtc.setAlarmMinutes(SELF_ADDRESS);
   rtc.enableAlarm(rtc.MATCH_MMSS);
   rtc.attachInterrupt(alarmMatch);
 }
@@ -385,18 +385,18 @@ void usbInit() {
 /************ Temp sensors init ************/
 void tempInit() {
 
-  pinMode(tempPower, OUTPUT);
-  digitalWrite(tempPower, HIGH);
+  pinMode(TEMP_POWER, OUTPUT);
+  digitalWrite(TEMP_POWER, HIGH);
 
   // init temp sensors
-  sensors.begin();
+  tempSensors.begin();
 
   // for every sensor
-  for (int i = 0; i < numSensors; i++) {
+  for (int i = 0; i < NUM_TEMP_SENSORS; i++) {
 
 
     // if error getting the address
-    if (!sensors.getAddress(addr[i], i)) {
+    if (!tempSensors.getAddress(tempAddrx[i], i)) {
 
       // print error
       Serial.println("Couldn't find sensor at address 0");
@@ -406,12 +406,12 @@ void tempInit() {
     Serial.print("Sensor ");
     Serial.print(i, DEC);
     Serial.print(" online, address: ");
-    printArr(addr[i], 8);
+    printArr(tempAddrx[i], 8);
     Serial.println(" ");
   }
 
   // set sensors to 12 bit resolution
-  sensors.setResolution(12);
+  tempSensors.setResolution(12);
 }
 
 
@@ -420,8 +420,8 @@ void tempInit() {
 void pingerInit() {
 
   // power it up
-  pinMode(pingerPower, OUTPUT);
-  digitalWrite(pingerPower, HIGH);
+  pinMode(PINGER_POWER, OUTPUT);
+  digitalWrite(PINGER_POWER, HIGH);
 
   // init serial comms
   pinger.begin(9600);
@@ -488,7 +488,7 @@ void radioInit() {
 
   // set parameters
   driver.setTxPower(23, false);
-  driver.setFrequency(RF95_FREQ);
+  driver.setFrequency(RADIO_FREQ);
   manager.setRetries((uint8_t)shakeLimit);
 }
 
@@ -500,7 +500,7 @@ void boardSleep() {
   driver.sleep();
   oneWire.depower();
   pinger.end();
-  digitalWrite(pingerPower, LOW);
-  digitalWrite(tempPower, LOW);
+  digitalWrite(PINGER_POWER, LOW);
+  digitalWrite(TEMP_POWER, LOW);
   rtc.standbyMode();
 }
