@@ -1,11 +1,13 @@
-/*********
-Code to demonstrate how to read temperature data off of the DS18B20
-As found on: https://randomnerdtutorials.com/guide-for-ds18b20-temperature-sensor-with-arduino/
+/*
 
-Modified by David Clemens-Sewall on 2019-06-23
+readMultipleTempSensors.ino
 
-Modified by Ian Raphael 2021.07.13
-*********/
+Read multiple temp sensors
+
+Ian Raphael
+ian.th@dartmouth.edu
+2021.07.19
+*/
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
