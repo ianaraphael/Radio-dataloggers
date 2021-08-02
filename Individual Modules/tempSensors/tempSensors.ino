@@ -9,7 +9,6 @@ ian.th@dartmouth.edu
 2021.07.19
 */
 
-#include <MemoryFree.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -19,7 +18,6 @@ ian.th@dartmouth.edu
 #define TEMP_POWER 6 // temp probe power line
 #define STATION_ID 1 // station ID
 #define NUM_TEMP_SENSORS 2 // number of sensors
-
 
 
 /*************** TempSensors class ***************/
@@ -66,6 +64,7 @@ public:
   // and creates the header information for the data file.
   // IMPT: This uses dynamically allocated memory via `new`! You _must_ free the address
   // array and the header information via the tempsensors destructor method when you are done.
+  // TODO: fully sleep the sensors at the end of this function
   TempSensors(int data_pin, int power_pin, int num_tempSensors, int station_ID) {
 
     // Setup a oneWire instance to communicate with any OneWire devices
@@ -112,10 +111,7 @@ public:
     filename += stationID;
     filename += "_tempArray.txt";
 
-
     // define the header information
-    int numHeaderLines = 3;
-
     headerInformation = new String[numHeaderLines];
 
     headerInformation[0] = "DS18B20 array";
@@ -132,6 +128,9 @@ public:
       headerInformation[2] += ", Sensor ";
       headerInformation[2] += i+1;
     }
+
+    // shut down the sensors until we need them
+    digitalWrite(powerPin , LOW);
   }
 
 
@@ -139,7 +138,11 @@ public:
   // Reads an array of temp sensors, returning a string with a timestamp and the
   // reading for each sensor.
   // inputs: timestamp
+  // TODO: wake/sleep the sensors in this function
   String readTempSensors(String date, String time) {
+
+    // w
+    digitalWrite(powerPin , LOW);
 
     // Call sensors.requestTemperatures() to issue a global temperature request to all devices on the bus
     sensors.requestTemperatures();
