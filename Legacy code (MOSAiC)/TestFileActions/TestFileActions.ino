@@ -36,7 +36,7 @@ void setup() {
   unsigned long size = SerialFlash.capacity(id);
   Serial.print("Flash memory capacity (bytes): ");
   Serial.println(size);
-  
+
   //Erase everything
   Serial.println("Erasing everything:");
   SerialFlash.eraseAll();
