@@ -99,6 +99,9 @@ void loop() {
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
 
+  // get a buffer to hold a filename
+  char filename[sizeof(buf)];
+
   // if the manager isn't busy right now
   if (manager.available()) {
 
@@ -113,9 +116,6 @@ void loop() {
 
         // save the client id
         busyWithClient = from;
-
-        // get a buffer to hold the filename
-        char filename[sizeof(buf)];
 
         // and a response buffer
         uint8_t* handshake;
@@ -134,9 +134,9 @@ void loop() {
           SerialFlashFile file;
           file = SerialFlash.open(filename);
 
-          // send back number of bytes we've received
+          // convert number of bytes we've received to char and store in buffer
           int numBytesReceived = file.position();
-          handshake = numBytesReceived;
+          itoa(numBytesReceived,(char*)handshake,10);
 
         }
         else { // otherwise
@@ -150,9 +150,9 @@ void loop() {
           SerialFlashFile file;
           file = SerialFlash.open(filename);
 
-          // send back number of lines (should be 0)
+          // // convert number of bytes we've received to char and store in buffer (should be 0)
           int numBytesReceived = file.position();
-          handshake = numBytesReceived;
+          itoa(numBytesReceived,(char*)handshake,10);
         }
 
         // send the handshake message back to the client
