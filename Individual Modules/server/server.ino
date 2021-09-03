@@ -31,6 +31,7 @@
 #include <RHReliableDatagram.h>
 #include <RH_RF95.h>
 #include <SPI.h>
+#include <SerialFlash.h>
 
 #define SERVER_ADDRESS 1
 
@@ -43,6 +44,8 @@
 
 // Define frequency
 #define RF95_FREQ 915.0
+
+const int FlashChipSelect = 4; // digital pin for flash chip CS pin
 
 uint32_t testsize = 256; // test file size
 int busyWithClient = -1; // flag -1 if not currently engaged with a client, otherwise will be client ID when engaged
@@ -74,6 +77,20 @@ void setup()
   // you can set transmitter powers from 5 to 23 dBm:
   driver.setTxPower(23, false);
   driver.setFrequency(RF95_FREQ);
+
+  // Start SerialFlash
+  if (!SerialFlash.begin(FlashChipSelect)) {
+    while (1) {
+      Serial.println("Unable to access SPI Flash chip");
+      delay(1000);
+    }
+  }
+  Serial.println("Able to access SPI flash chip");
+
+  //Erase everything
+  Serial.println("Erasing everything:");
+  SerialFlash.eraseAll();
+  Serial.println("Done erasing everything");
 }
 
 
@@ -100,6 +117,9 @@ void loop() {
         // get a buffer to hold the filename
         char filename[sizeof(buf)];
 
+        // and a response buffer
+        uint8_t* handshake;
+
         // print the handshake message (filename)
         Serial.print("got request from: ");
         Serial.print(from, DEC);
@@ -116,7 +136,7 @@ void loop() {
 
           // send back number of bytes we've received
           int numBytesReceived = file.position();
-          uint8_t handshake = numBytesReceived;
+          handshake = numBytesReceived;
 
         }
         else { // otherwise
@@ -131,8 +151,8 @@ void loop() {
           file = SerialFlash.open(filename);
 
           // send back number of lines (should be 0)
-          int numLinesReceived = file.position();
-          uint8_t handshake = numBytesReceived;
+          int numBytesReceived = file.position();
+          handshake = numBytesReceived;
         }
 
         // send the handshake message back to the client
@@ -143,7 +163,7 @@ void loop() {
           Serial.println("Client failed to acknowledge reply");
         }
       }
-      elseif(from == busyWithClient) { // if the message is from the client we're busy with
+      else if(from == busyWithClient) { // if the message is from the client we're busy with
 
       // get a buffer to hold the data
       char dataToWrite[sizeof(buf)];
@@ -153,7 +173,7 @@ void loop() {
       strcat(dataToWrite, " ");
       Serial.println(dataToWrite);
 
-      // open the file
+      // open the file1
       SerialFlashFile file;
       file = SerialFlash.open(filename);
 
@@ -167,6 +187,5 @@ void loop() {
     }
     // in all other cases, ignore sender
   }
-}
 }
 }
