@@ -1,11 +1,3 @@
-// rf95_server.pde
-// -*- mode: C++ -*-
-// Example sketch showing how to create a simple addressed, reliable messaging server
-// with the RHReliableDatagram class, using the RH_RF95 driver to control a RF95 radio.
-// It is designed to work with the other example rf95_reliable_datagram_client
-// Tested with Anarduino MiniWirelessLoRa, Rocket Scream Mini Ultra Pro with the RFM95W
-
-
 //**** server pseudocode ****//
 
 // Sit around and wait for a message (open mode)
@@ -47,7 +39,7 @@
 
 const int FlashChipSelect = 4; // digital pin for flash chip CS pin
 
-uint32_t testsize = 256; // test file size
+uint32_t testsize = 512; // test file size
 int busyWithClient = -1; // flag -1 if not currently engaged with a client, otherwise will be client ID when engaged
 
 // Singleton instance of the radio driver
@@ -86,18 +78,24 @@ void setup()
     }
   }
   Serial.println("Able to access SPI flash chip");
+  SerialFlash.wakeup();
 
   //Erase everything
-  Serial.println("Erasing everything:");
+  Serial.println("Erasing everything...");
   SerialFlash.eraseAll();
+  while (SerialFlash.ready() == false) {
+    // wait, 30 seconds to 2 minutes for most chips
+  }
   Serial.println("Done erasing everything");
+  Serial.println();
 }
 
 
 void loop() {
 
+  // Serial.println("Waiting for Godot...");
   // Dont put this on the stack:
-  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+  uint8_t buf[30];
 
   // get a buffer to hold a filename
   char filename[sizeof(buf)];
@@ -124,9 +122,12 @@ void loop() {
         Serial.print("got request from: ");
         Serial.print(from, DEC);
         Serial.print(": ");
+        // Serial.println((char*) buf);
+        // Serial.println("made it here2: ");
         strcpy(filename, (char*)buf);
-        strcat(filename, " ");
+        // strcat(filename, " ");
         Serial.println(filename);
+        // Serial.println("made it here3: ");
 
         // if we've got the file here on the server
         if (SerialFlash.exists(filename)) {
@@ -138,25 +139,38 @@ void loop() {
           int numBytesReceived = file.position();
           itoa(numBytesReceived,(char*)handshake,10);
 
+          Serial.print("bytes received: ");
+          Serial.println(numBytesReceived,DEC);
+
         }
         else { // otherwise
 
           // create the file here
-          SerialFlash.create(filename, testsize);
-          Serial.print("Created: ");
-          Serial.println(filename);
+          if(SerialFlash.create(filename, 512)) {
+            Serial.print("Created: ");
+            Serial.println(filename);
 
-          // open it
-          SerialFlashFile file;
-          file = SerialFlash.open(filename);
+            // open it
+            SerialFlashFile file;
+            file = SerialFlash.open(filename);
 
-          // // convert number of bytes we've received to char and store in buffer (should be 0)
-          int numBytesReceived = file.position();
-          itoa(numBytesReceived,(char*)handshake,10);
+            // convert number of bytes we've received to char and store in buffer (should be 0)
+            int numBytesReceived = file.position();
+            itoa(numBytesReceived,(char*)handshake,10);
+
+            Serial.print("bytes received: ");
+            Serial.println(numBytesReceived,DEC);
+
+          }
+          else{
+            Serial.println("failed to create file");
+          }
         }
 
         // send the handshake message back to the client
-        Serial.println("Sending handshake back to client");
+        Serial.print("Sending handshake back to client: ");
+        Serial.println(*handshake);
+
 
         // Send a reply back to the originator client
         if (!manager.sendtoWait(handshake, sizeof(handshake), from)) {
@@ -169,11 +183,13 @@ void loop() {
       char dataToWrite[sizeof(buf)];
 
       // copy the received data into a write buffer
+      Serial.print("Writing to file: ");
       strcpy(dataToWrite, (char*)buf);
       strcat(dataToWrite, " ");
       Serial.println(dataToWrite);
+      Serial.println();
 
-      // open the file1
+      // open the file
       SerialFlashFile file;
       file = SerialFlash.open(filename);
 
@@ -188,4 +204,10 @@ void loop() {
     // in all other cases, ignore sender
   }
 }
+}
+
+void spaces(int num) {
+  for (int i=0; i < num; i++) {
+    Serial.print(' ');
+  }
 }

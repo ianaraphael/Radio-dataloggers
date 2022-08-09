@@ -60,7 +60,7 @@ void setup()
   // start serial comms with the computer
   Serial.begin(9600);
 
-  // while the radio manager hasn't inited
+  // while the radio manager hasn't init'ed
   while (!manager.init()) {
   }
 

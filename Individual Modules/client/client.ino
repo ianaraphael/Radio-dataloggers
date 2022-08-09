@@ -7,7 +7,7 @@
 
 #define SERVER_ADDRESS 1
 #define CLIENT_ADDRESS 2
-#define TIMEOUT 2000
+#define TIMEOUT 5000
 
 // Define pins
 #define RFM95_CS 5
@@ -57,7 +57,8 @@ void setup()
   // you can set transmitter powers from 5 to 23 dBm:
   driver.setTxPower(23, false);
   driver.setFrequency(RF95_FREQ);
-
+  // driver.sleep(); // sleep the radio for now
+  // pinMode(RFM95_CS,INPUT_PULLUP);
 
   /**** flash chip ****/
 
@@ -69,29 +70,39 @@ void setup()
     }
   }
   Serial.println("Able to access SPI flash chip");
+  SerialFlash.wakeup();
 
-  //Erase everything
-  Serial.println("Erasing everything:");
+  // Erase everything
+  Serial.println("Erasing everything.");
   SerialFlash.eraseAll();
+  while (SerialFlash.ready() == false) {
+    // wait, 30 seconds to 2 minutes for most chips
+  }
   Serial.println("Done erasing everything");
+  Serial.println();
 
   // Create a file
-  SerialFlash.create(filename, testsize);
-  Serial.print("Created: ");
-  Serial.println(filename);
+  if(SerialFlash.create(filename, testsize)) {
+    Serial.print("Created: ");
+    Serial.println(filename);
 
-  // open it
-  SerialFlashFile file;
-  file = SerialFlash.open(filename);
+    // open it
+    SerialFlashFile file;
+    file = SerialFlash.open(filename);
 
-  // write something to it
-  char buf[] = "a";
-  const uint32_t wrlen = sizeof(buf); // This must be const
-  numBytesRecorded += wrlen; // update the number of bytes recorded
-  Serial.print("Write to file: ");
-  Serial.println(buf);
-  file.write(buf, wrlen);
-  file.close();
+    // write something to it
+    char buf[] = "a";
+    const uint32_t wrlen = sizeof(buf); // This must be const
+    numBytesRecorded += wrlen; // update the number of bytes recorded
+    Serial.print("Write init message to file: ");
+    Serial.println(buf);
+    Serial.println();
+    file.write(buf, wrlen);
+    file.close();
+  }
+  else{
+    Serial.println("failed to create file");
+  }
 }
 
 //**** client pseudocode ****//
@@ -126,14 +137,20 @@ void loop() {
   numBytesRecorded += wrlen;
 
   // we're going to send the filename that we want to transmit as the handshake
-  uint8_t* handshake = (uint8_t*) filename;
+  uint8_t handshake[sizeof(filename)+8];
+  strcpy((char*)handshake,filename);
 
   // allocate a buffer to hold received uint data and one for char data
   uint8_t receiveBuf[RH_RF95_MAX_MESSAGE_LEN];
   char msg[sizeof(receiveBuf)];
 
-  Serial.println("Attempting to handshake with the server");
+  Serial.print("Attempting to handshake with the server. Message: ");
+  Serial.print((char*)handshake);
+  Serial.print(" (length ");
+  Serial.print(strlen((char*)handshake));
+  Serial.println(")");
 
+  digitalWrite(RFM95_CS,HIGH);
   // send the initialize handshake message to the server
   if (manager.sendtoWait(handshake, sizeof(handshake), SERVER_ADDRESS)) {
 
@@ -166,16 +183,21 @@ void loop() {
       Serial.println("Reading from file:");
       file2.read(sendBuf, sizeof(sendBuf));
 
+      Serial.print("Sending to server: ");
+      Serial.println(sendBuf);
+      Serial.println();
       // send that to the server
       manager.sendtoWait((uint8_t*)sendBuf, sizeof(sendBuf), SERVER_ADDRESS);
 
     }
     else {
       Serial.println("Server's busy, going about my business");
+      Serial.println();
     }
   }
   else {
     Serial.println("Server failed to acknowledge handshake");
+    Serial.println();
   }
   delay(1000);
 }
