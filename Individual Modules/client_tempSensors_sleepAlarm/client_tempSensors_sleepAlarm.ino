@@ -399,7 +399,7 @@ void loop(void) {
   /************ radio transmission ************/
 
   // make up some data
-  uint8_t data[] = "Hello World!";
+  // uint8_t data[] = "Hello World!";
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
@@ -408,7 +408,7 @@ void loop(void) {
   Serial.println("Attempting to send a message to the server");
 
   // send the initial handshake message to the server
-  if (manager.sendtoWait(data, sizeof(data), SERVER_ADDRESS)) {
+  if (manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS)) {
 
     // Now wait for the reply from the server
     uint8_t len = sizeof(buf);
