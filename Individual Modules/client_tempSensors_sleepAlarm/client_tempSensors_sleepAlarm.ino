@@ -11,6 +11,9 @@ ian.th@dartmouth.edu
 2022.08.09
 */
 
+// debug
+bool volatile trigger = true;
+
 #define Serial SerialUSB
 
 /***************!! Station settings !!***************/
@@ -399,46 +402,99 @@ void loop(void) {
   /************ radio transmission ************/
 
   // make up some data
-  // uint8_t data[] = "Hello World!";
+  uint8_t handshake[] = "Ready for data?";
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
   char msg[sizeof(buf)];
 
-  Serial.println("Attempting to send a message to the server");
+  // Serial.println("Attempting to send a message to the server");
+
+  // manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS))
 
   // send the initial handshake message to the server
-  if (manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS)) {
+  if (manager.sendtoWait((uint8_t*) handshake,sizeof(handshake), SERVER_ADDRESS)) {
 
-    // Now wait for the reply from the server
+    Serial.println("something fishy happened here");
+
+    // Now wait for the reply from the server telling us how much of the data file it has
     uint8_t len = sizeof(buf);
     uint8_t from;
     if (manager.recvfromAckTimeout(buf, &len, TIMEOUT, &from)) {
 
-      // print whatever the server sent back
+      // print the server reply
       strcpy(msg, (char*)buf);
       strcat(msg, " ");
-      Serial.println(msg);
 
+      // convert to an integer
+      int serverFileLength = atoi(msg);
+      Serial.print("Server file length: ");
+      Serial.println(serverFileLength,DEC);
+
+      // open the file for writing
+      File dataFile = SD.open(tempSensors_object.filename, FILE_READ);
+
+      // if the file is available
+      if (dataFile) {
+        // get the file length
+        int stationFileLength = dataFile.size();
+
+        Serial.print("Station file length: ");
+        Serial.println(stationFileLength,DEC);
+
+        // if the file is longer than what the server has
+        if (serverFileLength < stationFileLength) {
+
+          // seek to that point in the file
+          dataFile.seek(serverFileLength);
+
+          Serial.print("File position after seek: ");
+          Serial.println(dataFile.position(),DEC);
+
+          // create a buffer
+          uint8_t sendLength = stationFileLength-serverFileLength;
+          uint8_t sendBuf[sendLength];
+
+          // read the missing data in
+          dataFile.read(sendBuf,sendLength);
+
+          // close the file
+          dataFile.close();
+
+          // print the data that we're going to send
+          Serial.println("Sending the following data to the server: ");
+          Serial.println((char*) sendBuf);
+          Serial.println("");
+
+          // send the data to the server
+          manager.sendtoWait((uint8_t*) sendBuf, sendLength, SERVER_ADDRESS);
+        }
+      }
     }
     else
     {
-      Serial.println("Server's busy, going about my business");
+      // Serial.println("Server's busy, going about my business");
     }
   }
   else {
-    Serial.println("Server failed to acknowledge receipt");
+    // Serial.println("Server failed to acknowledge receipt");
   }
+
+  /************ alarm schedule ************/
 
   // schedule the next alarm
   alarm_one();
 
-  if (Serial){
-    USBDevice.detach();
-  }
+  // if (Serial){
+  //   USBDevice.detach();
+  // }
+  //
+  // // Sleep until next alarm match
+  // rtc.standbyMode();
 
-  // Sleep until next alarm match
-  rtc.standbyMode();
+  // debug
+  trigger = false;
+  while(!trigger);
 }
 
 
@@ -614,6 +670,7 @@ void alarm_one() {
 * loop upon alarm
 */
 void alarm_one_routine() {
+  trigger = true;
 }
 
 

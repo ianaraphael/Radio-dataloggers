@@ -76,12 +76,13 @@ void setup()
 
 void loop() {
   // make up some data
-  uint8_t data[] = "Hey there! Good to hear from you.";
+  // uint8_t data[] = "Hey there! Good to hear from you.";
+  uint8_t data[] = "0";
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
   char msg[sizeof(buf)];
-
+  buf[0] = '\0';
 
   // if the manager isn't busy right now
   if (manager.available()) {
@@ -97,8 +98,6 @@ void loop() {
       strcpy(msg, (char*)buf);
       strcat(msg, " ");
       Serial.println(msg);
-
-
 
       Serial.println("Sending reply back to client");
 
