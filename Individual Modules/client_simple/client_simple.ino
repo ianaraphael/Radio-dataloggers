@@ -61,7 +61,7 @@ void setup()
   // start serial comms with the computer
   Serial.begin(9600);
 
-  // while the radio manager hasn't inited
+  // while the radio manager hasn't init'ed
   while (!manager.init()) {
   }
 
@@ -87,7 +87,7 @@ void loop() {
 
   Serial.println("Attempting to send a message to the server");
 
-  // send the initialize handshake message to the server
+  // send the initial handshake message to the server
   if (manager.sendtoWait(data, sizeof(data), SERVER_ADDRESS)) {
 
     // Now wait for the reply from the server
