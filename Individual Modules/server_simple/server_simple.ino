@@ -10,19 +10,19 @@
 
 // Sit around and wait for a message (open mode)
 // If I'm in open mode and receive a message _immediately_ go into closed mode, and save the sender ID
-  // check the message type. if it's a handshake message
-    // get and save the filenames that the client wants to transmit
-    // check the number of lines of each that we have locally
-    // send a message back with those numbers
-    // wait for a message back
-      // when I receive a message
-        // if it's from the client I'm already talking to and it's a data message
-          // append the data to the appropriate local files
-          // exit closed mode
-        // it it's from somebody else, ignore it
-    // if we've been in closed mode past `timeout` time
-      // exit closed mode
-  // otherwise exit closed mode
+// check the message type. if it's a handshake message
+// get and save the filenames that the client wants to transmit
+// check the number of lines of each that we have locally
+// send a message back with those numbers
+// wait for a message back
+// when I receive a message
+// if it's from the client I'm already talking to and it's a data message
+// append the data to the appropriate local files
+// exit closed mode
+// it it's from somebody else, ignore it
+// if we've been in closed mode past `timeout` time
+// exit closed mode
+// otherwise exit closed mode
 // otherwise ignore it
 
 
@@ -43,6 +43,8 @@
 
 // Define frequency
 #define RF95_FREQ 915.0
+
+int volatile withClient = SERVER_ADDRESS;
 
 // Singleton instance of the radio driver
 RH_RF95 driver(RFM95_CS, RFM95_INT);
@@ -76,7 +78,7 @@ void setup()
 
 void loop() {
   // uint8_t data[] = "Hey there! Good to hear from you.";
-  uint8_t data[] = "0";
+  uint8_t numBytesServer[] = "0";
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
@@ -90,20 +92,51 @@ void loop() {
     uint8_t len = sizeof(buf);
     uint8_t from;
 
+    // if we've gotten a message
     if (manager.recvfromAck(buf, &len, &from)) {
-      Serial.print("got request from: ");
-      Serial.print(from, DEC);
-      Serial.print(": ");
-      strcpy(msg, (char*)buf);
-      strcat(msg, " ");
-      Serial.println(msg);
 
-      Serial.println("Sending reply back to client");
+      // if the message is from a client we're already dealing with or if we're in standby mode
+      if (from == withClient || withClient == SERVER_ADDRESS) {
 
-      // Send a reply back to the originator client
-      if (!manager.sendtoWait(data, sizeof(data), from)) {
-        Serial.println("Client failed to acknowledge reply");
+        // switch on the message contents
+        switch (atoi((const char*) buf)) {
+
+          // if it's a transaction begin/end message
+          case 9999:
+
+          // if it's from a client we're already dealing with
+          if (withClient == from) {
+
+            // it's a transaction termination message; switch withClient back to server address to indicate "standby" mode
+            withClient = SERVER_ADDRESS;
+
+            Serial.print("transaction with: ");
+            Serial.print(from, DEC);
+            Serial.println(" terminated.");
+
+          } else if (withClient == SERVER_ADDRESS) { // if we're in standby mode
+          // it's a transaction initiation message; change withClient to remember which client we're talking to
+          withClient = from;
+
+          // and send a handshake back to the client
+          Serial.println("Sending handshake back to client: ");
+          Serial.println(from, DEC);
+
+          // Send a reply back to the originator client
+          if (!manager.sendtoWait(numBytesServer, sizeof(numBytesServer), from)) {
+            Serial.println("Client failed to acknowledge reply");
+          }
+        }
+        break;
+
+        // by default
+        default:
+
+        // print the data out (save to file)
+        Serial.print((char*) buf);
+        break;
       }
     }
   }
+}
 }

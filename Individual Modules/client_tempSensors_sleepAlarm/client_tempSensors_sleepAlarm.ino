@@ -401,21 +401,22 @@ void loop(void) {
 
   /************ radio transmission ************/
 
-  // make up some data
-  uint8_t handshake[] = "Ready for data?";
+  // send a handshake message
+  uint8_t handshake[] = "9999";
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
   char msg[sizeof(buf)];
 
-  // Serial.println("Attempting to send a message to the server");
+  Serial.println("Attempting to send a message to the server");
 
   // manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS))
 
+  // disable intterupts during comms
+  // noInterrupts();
+
   // send the initial handshake message to the server
   if (manager.sendtoWait((uint8_t*) handshake,sizeof(handshake), SERVER_ADDRESS)) {
-
-    // Serial.println("something fishy happened here");
 
     // Now wait for the reply from the server telling us how much of the data file it has
     uint8_t len = sizeof(buf);
@@ -453,21 +454,23 @@ void loop(void) {
           // create a buffer
           uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
 
+          uint8_t sendLength = RH_RF95_MAX_MESSAGE_LEN - 4;
+
           // while we haven't sent all information
           while (stationFileLength > dataFile.position()) {
 
             memset(sendBuf, 0, sizeof(sendBuf));
 
             // read a 256 byte chunk
-            int numBytesRead = dataFile.readBytes(sendBuf,RH_RF95_MAX_MESSAGE_LEN);
+            int numBytesRead = dataFile.readBytes(sendBuf,sendLength);
 
             // print the data that we're going to send
             // Serial.println("Sending the following data to the server: ");
             Serial.print((char*) sendBuf);
             // Serial.println("");
-            
+
             // send the data to the server
-            // manager.sendtoWait((uint8_t*) sendBuf, sizeof(sendBuf), SERVER_ADDRESS);
+            manager.sendtoWait((uint8_t*) sendBuf, sendLength, SERVER_ADDRESS);
           }
         }
 
@@ -476,9 +479,8 @@ void loop(void) {
       }
 
       // send a closure message
-      // sendBuf[0] = "0";
-      // sendBuf[1] = "\0";
-      // manager.sendtoWait((uint8_t*) sendBuf, sizeof(sendBuf), SERVER_ADDRESS);
+      char closureMessage[] = "9999";
+      manager.sendtoWait((uint8_t*) closureMessage, sizeof(closureMessage), SERVER_ADDRESS);
     }
     else
     {
@@ -488,6 +490,8 @@ void loop(void) {
   else {
     // Serial.println("Server failed to acknowledge receipt");
   }
+
+  // interrupts();
 
   /************ alarm schedule ************/
 
