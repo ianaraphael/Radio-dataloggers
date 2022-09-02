@@ -1,11 +1,3 @@
-// rf95_server.pde
-// -*- mode: C++ -*-
-// Example sketch showing how to create a simple, addressed, reliable messaging server
-// with the RHReliableDatagram class, using the RH_RF95 driver to control a RF95 radio.
-// It is designed to work with the other example rf95_reliable_datagram_client
-// Tested with Anarduino MiniWirelessLoRa, Rocket Scream Mini Ultra Pro with the RFM95W
-
-
 //**** server pseudocode ****//
 
 // Sit around and wait for a message (open mode)
@@ -31,6 +23,7 @@
 #include <RHReliableDatagram.h>
 #include <RH_RF95.h>
 #include <SPI.h>
+#include <SD.h>
 
 #define SERVER_ADDRESS 1
 
@@ -38,13 +31,19 @@
 #define RFM95_CS 5
 #define RFM95_INT 2
 #define LED 13
+#define SD_CS 10 // SD card chip select
+#define SD_CD NAN // SD card chip DETECT. Indicates presence/absence of SD card. High when card is inserted.
 
 #define Serial SerialUSB
 
 // Define frequency
 #define RF95_FREQ 915.0
 
+// indicates whether we're with a client and which client it is. default to server_address when on standby.
 int volatile withClient = SERVER_ADDRESS;
+
+// declare a global file object to write stuff onto
+File dataFile;
 
 // Singleton instance of the radio driver
 RH_RF95 driver(RFM95_CS, RFM95_INT);
@@ -114,9 +113,19 @@ void loop() {
             Serial.print(from, DEC);
             Serial.println(" terminated.");
 
+            // close the file
+            dataFile.close();
+
           } else if (withClient == SERVER_ADDRESS) { // if we're in standby mode
+
           // it's a transaction initiation message; change withClient to remember which client we're talking to
           withClient = from;
+
+          // initialize the SD card
+          init_sd();
+
+          // open the appropriate file
+          dataFile = SD.open(filename, FILE_WRITE);
 
           // and send a handshake back to the client
           Serial.println("Sending handshake back to client: ");
@@ -129,14 +138,50 @@ void loop() {
         }
         break;
 
+        /******************** add case to deal with getting the filename and n bytes from client ********************/
+        // something like: first two bytes are case code, then numbytes, then filename
+        // case :
+
         // by default
         default:
 
-        // print the data out (save to file)
+        // print the data out
         Serial.print((char*) buf);
+
+        // if the file is available
+        if (dataFile) {
+
+          // write the data to the file
+          dataFile.println(buf);
+            // flash LED to indicate successful data write
+            // for (int i=0;i<5;i++){
+            //   digitalWrite(13,HIGH);
+            //   delay(500);
+            //   digitalWrite(13,LOW);
+            //   delay(500);
+            // }
+        }
+
         break;
       }
     }
   }
 }
+}
+
+/************ init_SD ************/
+void init_SD(){
+
+  delay(100);
+  // set SS pins high for turning off radio
+  pinMode(RADIO_CS, OUTPUT);
+  delay(500);
+  digitalWrite(RADIO_CS, HIGH);
+  delay(500);
+  pinMode(SD_CS, OUTPUT);
+  delay(500);
+  digitalWrite(SD_CS, LOW);
+  delay(1000);
+  SD.begin(SD_CS);
+  delay(1000);
 }
