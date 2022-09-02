@@ -415,7 +415,7 @@ void loop(void) {
   // send the initial handshake message to the server
   if (manager.sendtoWait((uint8_t*) handshake,sizeof(handshake), SERVER_ADDRESS)) {
 
-    Serial.println("something fishy happened here");
+    // Serial.println("something fishy happened here");
 
     // Now wait for the reply from the server telling us how much of the data file it has
     uint8_t len = sizeof(buf);
@@ -445,31 +445,40 @@ void loop(void) {
         // if the file is longer than what the server has
         if (serverFileLength < stationFileLength) {
 
+          Serial.println("Sending: ");
+
           // seek to that point in the file
           dataFile.seek(serverFileLength);
 
-          Serial.print("File position after seek: ");
-          Serial.println(dataFile.position(),DEC);
-
           // create a buffer
-          uint8_t sendLength = stationFileLength-serverFileLength;
-          uint8_t sendBuf[sendLength];
+          uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
 
-          // read the missing data in
-          dataFile.read(sendBuf,sendLength);
+          // while we haven't sent all information
+          while (stationFileLength > dataFile.position()) {
 
-          // close the file
-          dataFile.close();
+            memset(sendBuf, 0, sizeof(sendBuf));
 
-          // print the data that we're going to send
-          Serial.println("Sending the following data to the server: ");
-          Serial.println((char*) sendBuf);
-          Serial.println("");
+            // read a 256 byte chunk
+            int numBytesRead = dataFile.readBytes(sendBuf,RH_RF95_MAX_MESSAGE_LEN);
 
-          // send the data to the server
-          manager.sendtoWait((uint8_t*) sendBuf, sendLength, SERVER_ADDRESS);
+            // print the data that we're going to send
+            // Serial.println("Sending the following data to the server: ");
+            Serial.print((char*) sendBuf);
+            // Serial.println("");
+            
+            // send the data to the server
+            // manager.sendtoWait((uint8_t*) sendBuf, sizeof(sendBuf), SERVER_ADDRESS);
+          }
         }
+
+        // close the file
+        dataFile.close();
       }
+
+      // send a closure message
+      // sendBuf[0] = "0";
+      // sendBuf[1] = "\0";
+      // manager.sendtoWait((uint8_t*) sendBuf, sizeof(sendBuf), SERVER_ADDRESS);
     }
     else
     {

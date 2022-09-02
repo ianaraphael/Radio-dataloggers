@@ -75,7 +75,6 @@ void setup()
 
 
 void loop() {
-  // make up some data
   // uint8_t data[] = "Hey there! Good to hear from you.";
   uint8_t data[] = "0";
 
