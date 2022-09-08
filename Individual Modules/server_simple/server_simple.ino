@@ -28,8 +28,8 @@
 #define SERVER_ADDRESS 1
 
 // Define pins
-#define RFM95_CS 5
-#define RFM95_INT 2
+#define RADIO_CS 5
+#define RADIO_INT 2
 #define LED 13
 #define SD_CS 10 // SD card chip select
 #define SD_CD NAN // SD card chip DETECT. Indicates presence/absence of SD card. High when card is inserted.
@@ -37,16 +37,18 @@
 #define Serial SerialUSB
 
 // Define frequency
-#define RF95_FREQ 915.0
+#define RADIO_FREQ 915.0
 
 // indicates whether we're with a client and which client it is. default to server_address when on standby.
 int volatile withClient = SERVER_ADDRESS;
 
 // declare a global file object to write stuff onto
 File dataFile;
+// declare a global filename
+String filename;
 
 // Singleton instance of the radio driver
-RH_RF95 driver(RFM95_CS, RFM95_INT);
+RH_RF95 driver(RADIO_CS, RADIO_INT);
 
 // Class to manage message delivery and receipt, using the driver declared above
 RHReliableDatagram manager(driver, SERVER_ADDRESS);
@@ -71,13 +73,13 @@ void setup()
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then
   // you can set transmitter powers from 5 to 23 dBm:
   driver.setTxPower(23, false);
-  driver.setFrequency(RF95_FREQ);
+  driver.setFrequency(RADIO_FREQ);
 }
 
 
 void loop() {
-  // uint8_t data[] = "Hey there! Good to hear from you.";
-  uint8_t numBytesServer[] = "0";
+  // // uint8_t data[] = "Hey there! Good to hear from you.";
+  // uint8_t numBytesServer[] = "0";
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
@@ -97,11 +99,14 @@ void loop() {
       // if the message is from a client we're already dealing with or if we're in standby mode
       if (from == withClient || withClient == SERVER_ADDRESS) {
 
+        // get the first char
+        uint8_t messageType = buf[0];
+
         // switch on the message contents
-        switch (atoi((const char*) buf)) {
+        switch (messageType) {
 
           // if it's a transaction begin/end message
-          case 9999:
+          case 0:
 
           // if it's from a client we're already dealing with
           if (withClient == from) {
@@ -122,37 +127,46 @@ void loop() {
           withClient = from;
 
           // initialize the SD card
-          init_sd();
+          init_SD();
+
+          // get the filename
+          filename = "";
+          filename = String((char*)&buf[1]);
 
           // open the appropriate file
           dataFile = SD.open(filename, FILE_WRITE);
+
+          // figure out how many bytes we have
+          unsigned long numBytesServer = dataFile.size();
 
           // and send a handshake back to the client
           Serial.println("Sending handshake back to client: ");
           Serial.println(from, DEC);
 
           // Send a reply back to the originator client
-          if (!manager.sendtoWait(numBytesServer, sizeof(numBytesServer), from)) {
+          if (!manager.sendtoWait((uint8_t *) &numBytesServer, sizeof(&numBytesServer), from)) {
             Serial.println("Client failed to acknowledge reply");
           }
         }
         break;
 
-        /******************** add case to deal with getting the filename and n bytes from client ********************/
-        // something like: first two bytes are case code, then numbytes, then filename
-        // case :
+        // /******************** add case to deal with getting the filename and n bytes from client ********************/
+        // // something like: first two bytes are case code, then numbytes, then filename
+        // case 1:
+
+
 
         // by default
         default:
 
         // print the data out
-        Serial.print((char*) buf);
+        Serial.print((char*) &buf[1]);
 
         // if the file is available
         if (dataFile) {
 
           // write the data to the file
-          dataFile.println(buf);
+          dataFile.print(String((char*) &buf[1]));
             // flash LED to indicate successful data write
             // for (int i=0;i<5;i++){
             //   digitalWrite(13,HIGH);

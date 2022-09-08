@@ -1,14 +1,14 @@
 /*
 
-client_working.ino
+  client_working.ino
 
-Radio enabled temperature sensor station with deep sleep and alarm functionality.
-Samples temperature sensors and saves to a file on SD card. Enters standby
-(low power) mode. Wakes up by scheduled RTC alarm interrupt. Sends data to server.
+  Radio enabled temperature sensor station with deep sleep and alarm functionality.
+  Samples temperature sensors and saves to a file on SD card. Enters standby
+  (low power) mode. Wakes up by scheduled RTC alarm interrupt. Sends data to server.
 
-Ian Raphael
-ian.th@dartmouth.edu
-2022.08.09
+  Ian Raphael
+  ian.th@dartmouth.edu
+  2022.08.09
 */
 
 // debug
@@ -59,183 +59,183 @@ RHReliableDatagram manager(driver, STATION_ID); // Class to manage message deliv
 // define a class for the temp sensors
 class TempSensors {
 
-  // make public access for everything
-public:
+    // make public access for everything
+  public:
 
-  /* Attributes */
-  int powerPin; // power pin for the sensors
-  int dataPin; // data pin for the sensors
+    /* Attributes */
+    int powerPin; // power pin for the sensors
+    int dataPin; // data pin for the sensors
 
-  OneWire oneWire; // onewire obect for the dallas temp object to hold
-  DallasTemperature sensors; // the temp sensor object
-  uint8_t (*addresses)[8]; // pointer to array of device addresses
+    OneWire oneWire; // onewire obect for the dallas temp object to hold
+    DallasTemperature sensors; // the temp sensor object
+    uint8_t (*addresses)[8]; // pointer to array of device addresses
 
-  int numSensors; // number of temperature sensors in the array
-  int stationID; // measurement station ID
+    int numSensors; // number of temperature sensors in the array
+    int stationID; // measurement station ID
 
-  String filename = ""; // a filename for the data file
-  String* headerInformation; // the header information for the data file
-  int numHeaderLines = 4;
-
-
-  /*************** TempSensors object destructor ***************/
-  // destroy a TempSensors object. Frees the dynamically allocated memory (called
-  // automatically once object goes out of scope)
-  ~TempSensors() {
-
-    // // deallocate the address array
-    delete [] addresses;
-    // zero out the address
-    addresses = 0;
-
-    delete [] headerInformation;
-    // zero out the address
-    headerInformation = 0;
-  }
+    String filename = ""; // a filename for the data file
+    String* headerInformation; // the header information for the data file
+    int numHeaderLines = 4;
 
 
-  /*************** TempSensors object constructor ***************/
-  // Constructor. This takes in the input information, addresses all of the sensors,
-  // and creates the header information for the data file.
-  // IMPT: This uses dynamically allocated memory via `new`! You _must_ free the address
-  // array and the header information via the tempsensors destructor method when you are done.
-  // TODO: fully sleep the sensors at the end of this function
-  TempSensors(int data_pin, int power_pin, int num_tempSensors, int station_ID) {
+    /*************** TempSensors object destructor ***************/
+    // destroy a TempSensors object. Frees the dynamically allocated memory (called
+    // automatically once object goes out of scope)
+    ~TempSensors() {
 
-    // Setup a oneWire instance to communicate with any OneWire devices
-    OneWire currOneWire = OneWire(data_pin);
+      // // deallocate the address array
+      delete [] addresses;
+      // zero out the address
+      addresses = 0;
 
-    this->oneWire = currOneWire;
-
-    // Pass our oneWire reference to create a Dallas Temp object
-    DallasTemperature currDallasTemp = DallasTemperature(&oneWire);
-
-    this->sensors = currDallasTemp;
-
-    // copy over the other stuff that we need
-    powerPin = power_pin;
-    numSensors = num_tempSensors;
-    stationID = station_ID;
-
-    // init the address array
-    addresses = new DeviceAddress[num_tempSensors];
-
-    // // and point the object's addresses attribute here
-    // addresses = curr_addresses;
-
-    if (!PARASITIC) {
-      pinMode(powerPin, OUTPUT);
-      digitalWrite(powerPin , HIGH);
+      delete [] headerInformation;
+      // zero out the address
+      headerInformation = 0;
     }
 
-    // init temp sensors themselves
-    this->sensors.begin();
 
-    // for every sensor
-    for (int i = 0; i < numSensors; i++) {
+    /*************** TempSensors object constructor ***************/
+    // Constructor. This takes in the input information, addresses all of the sensors,
+    // and creates the header information for the data file.
+    // IMPT: This uses dynamically allocated memory via `new`! You _must_ free the address
+    // array and the header information via the tempsensors destructor method when you are done.
+    // TODO: fully sleep the sensors at the end of this function
+    TempSensors(int data_pin, int power_pin, int num_tempSensors, int station_ID) {
 
-      // if error getting the address
-      if (!(this->sensors.getAddress(addresses[i], i))) {
+      // Setup a oneWire instance to communicate with any OneWire devices
+      OneWire currOneWire = OneWire(data_pin);
 
-        // print error
-        Serial.print("Couldn't find sensor at index ");
-        Serial.println(Serial.print(i),DEC);
+      this->oneWire = currOneWire;
+
+      // Pass our oneWire reference to create a Dallas Temp object
+      DallasTemperature currDallasTemp = DallasTemperature(&oneWire);
+
+      this->sensors = currDallasTemp;
+
+      // copy over the other stuff that we need
+      powerPin = power_pin;
+      numSensors = num_tempSensors;
+      stationID = station_ID;
+
+      // init the address array
+      addresses = new DeviceAddress[num_tempSensors];
+
+      // // and point the object's addresses attribute here
+      // addresses = curr_addresses;
+
+      if (!PARASITIC) {
+        pinMode(powerPin, OUTPUT);
+        digitalWrite(powerPin , HIGH);
+      }
+
+      // init temp sensors themselves
+      this->sensors.begin();
+
+      // for every sensor
+      for (int i = 0; i < numSensors; i++) {
+
+        // if error getting the address
+        if (!(this->sensors.getAddress(addresses[i], i))) {
+
+          // print error
+          Serial.print("Couldn't find sensor at index ");
+          Serial.println(Serial.print(i), DEC);
+        }
+      }
+
+      // now create the data filename
+      filename += "stn";
+      filename += stationID;
+      filename += ".txt";
+      // filename += "_tempArray.txt";
+
+      // define the header information
+      headerInformation = new String[numHeaderLines];
+
+      headerInformation[0] = "DS18B20 array";
+
+      headerInformation[1] = "Station ID: ";
+      headerInformation[1] += stationID;
+
+      headerInformation[2] = "Sensor addresses: {";
+      appendAddrToStr(addresses[0], &headerInformation[2]);
+      for (int i = 1; i < numSensors; i++) {
+        headerInformation[2] += ", ";
+        appendAddrToStr(addresses[i], &headerInformation[2]);
+      }
+      headerInformation[2] += "}";
+
+      headerInformation[3] = "Date, Time";
+      // for every sensor in the array
+      for (int i = 0; i < numSensors; i++) {
+
+        // add a header column for each sensor
+        headerInformation[3] += ", Sensor ";
+        headerInformation[3] += i + 1;
+      }
+
+      if (!PARASITIC) {
+        // shut down the sensors until we need them
+        digitalWrite(powerPin , LOW);
       }
     }
 
-    // now create the data filename
-    filename += "stn";
-    filename += stationID;
-    filename += ".txt";
-    // filename += "_tempArray.txt";
 
-    // define the header information
-    headerInformation = new String[numHeaderLines];
+    /*************** TempSensors readTempSensors ***************/
+    // Reads an array of temp sensors, returning a string with a timestamp and the
+    // reading for each sensor.
+    // inputs: timestamp
+    // TODO: wake/sleep the sensors in this function
+    String readTempSensors(String date, String time) {
 
-    headerInformation[0] = "DS18B20 array";
+      if (!PARASITIC) {
+        // write the power pin high
+        digitalWrite(powerPin, HIGH);
+      }
 
-    headerInformation[1] = "Station ID: ";
-    headerInformation[1] += stationID;
+      // Call sensors.requestTemperatures() to issue a global temperature request to all devices on the bus
+      sensors.requestTemperatures();
 
-    headerInformation[2] = "Sensor addresses: {";
-    appendAddrToStr(addresses[0], &headerInformation[2]);
-    for (int i=1;i<numSensors;i++){
-      headerInformation[2] += ", ";
-      appendAddrToStr(addresses[i], &headerInformation[2]);
-    }
-    headerInformation[2] += "}";
+      // declare a string to hold the read data
+      String readString = "";
 
-    headerInformation[3] = "Date, Time";
-    // for every sensor in the array
-    for (int i=0; i<numSensors; i++) {
+      // throw the timestamp on there
+      readString = date + ", " + time;
 
-      // add a header column for each sensor
-      headerInformation[3] += ", Sensor ";
-      headerInformation[3] += i+1;
-    }
+      // for every sensor on the line
+      for (int i = 0; i < numSensors; i++) {
 
-    if (!PARASITIC) {
-      // shut down the sensors until we need them
-      digitalWrite(powerPin , LOW);
-    }
-  }
+        // add its data to the string
+        readString += ", ";
+        readString += this->sensors.getTempC(addresses[i]);
+      }
 
+      if (!PARASITIC) {
+        // write the power pin low
+        digitalWrite(powerPin, LOW);
+      }
 
-  /*************** TempSensors readTempSensors ***************/
-  // Reads an array of temp sensors, returning a string with a timestamp and the
-  // reading for each sensor.
-  // inputs: timestamp
-  // TODO: wake/sleep the sensors in this function
-  String readTempSensors(String date, String time) {
-
-    if (!PARASITIC) {
-      // write the power pin high
-      digitalWrite(powerPin, HIGH);
+      // return the readstring. TODO: add timestamp to the string
+      return readString;
     }
 
-    // Call sensors.requestTemperatures() to issue a global temperature request to all devices on the bus
-    sensors.requestTemperatures();
+    /************ print array ************/
+    // void printArr(uint8_t *ptr, int len) {
+    //   for (int i=0; i<len; i++) {
+    //     Serial.print(ptr[i], HEX);
+    //     Serial.print(" ");
+    //   }
+    // }
 
-    // declare a string to hold the read data
-    String readString = "";
-
-    // throw the timestamp on there
-    readString = date + ", " + time;
-
-    // for every sensor on the line
-    for (int i=0; i<numSensors; i++){
-
-      // add its data to the string
-      readString += ", ";
-      readString += this->sensors.getTempC(addresses[i]);
-    }
-
-    if (!PARASITIC) {
-      // write the power pin low
-      digitalWrite(powerPin, LOW);
-    }
-
-    // return the readstring. TODO: add timestamp to the string
-    return readString;
-  }
-
-  /************ print array ************/
-  // void printArr(uint8_t *ptr, int len) {
-  //   for (int i=0; i<len; i++) {
-  //     Serial.print(ptr[i], HEX);
-  //     Serial.print(" ");
-  //   }
-  // }
-
-  void appendAddrToStr(uint8_t *addrPtr, String *strPtr) {
-    for (int i=0; i<8; i++) {
-      // *strPtr += "0x";
-      *strPtr += String(addrPtr[i],HEX);
-      if (i<7) {
-        *strPtr += " ";
+    void appendAddrToStr(uint8_t *addrPtr, String *strPtr) {
+      for (int i = 0; i < 8; i++) {
+        // *strPtr += "0x";
+        *strPtr += String(addrPtr[i], HEX);
+        if (i < 7) {
+          *strPtr += " ";
+        }
       }
     }
-  }
 };
 
 
@@ -297,7 +297,7 @@ void loop(void) {
   // }
 
   // if the file doesn't already exist
-  if (!SD.exists(tempSensors_object.filename)){
+  if (!SD.exists(tempSensors_object.filename)) {
 
     Serial.print("Creating datafile: ");
     Serial.println(tempSensors_object.filename);
@@ -310,7 +310,7 @@ void loop(void) {
     if (dataFile) {
 
       // print the header information to the file
-      for (int i=0;i<tempSensors_object.numHeaderLines;i++) {
+      for (int i = 0; i < tempSensors_object.numHeaderLines; i++) {
 
         dataFile.println(tempSensors_object.headerInformation[i]);
 
@@ -363,14 +363,14 @@ void loop(void) {
     timeString += String(mins) + ":";
   }
 
-  if (secs < 10){
+  if (secs < 10) {
     timeString += String(0) + String(secs);
   } else {
     timeString += String(secs);
   }
 
   // read the data
-  String dataString = tempSensors_object.readTempSensors(dateString,timeString);
+  String dataString = tempSensors_object.readTempSensors(dateString, timeString);
 
   // test print the data
   Serial.println(dataString);
@@ -390,23 +390,28 @@ void loop(void) {
     dataFile.close();
 
 
-      // flash LED to indicate successful data write
-      for (int i=0;i<5;i++){
-        digitalWrite(13,HIGH);
-        delay(500);
-        digitalWrite(13,LOW);
-        delay(500);
-      }
+    // flash LED to indicate successful data write
+    for (int i = 0; i < 5; i++) {
+      digitalWrite(13, HIGH);
+      delay(500);
+      digitalWrite(13, LOW);
+      delay(500);
+    }
   }
 
   /************ radio transmission ************/
 
-  // send a handshake message
-  uint8_t handshake[] = "9999";
+  // send a handshake message (1 byte for message type, then size of filename)
+  int filenameLength = (tempSensors_object.filename).length() + 1; // get the length of the filename
+  char charFilename[filenameLength]; // allocate array to hold filename as chars
+  (tempSensors_object.filename).toCharArray(charFilename,filenameLength); // convert to a char array
+  uint8_t handShake[1 + filenameLength]; // allocate memory for handshake message
+  handShake[0] = (uint8_t) 0; // write our message type code in
+  memcpy(&handShake[1], charFilename, filenameLength); // copy the filename in
 
   // Dont put this on the stack:
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-  char msg[sizeof(buf)];
+  // char msg[sizeof(buf)];
 
   Serial.println("Attempting to send a message to the server");
 
@@ -416,7 +421,7 @@ void loop(void) {
   // noInterrupts();
 
   // send the initial handshake message to the server
-  if (manager.sendtoWait((uint8_t*) handshake,sizeof(handshake), SERVER_ADDRESS)) {
+  if (manager.sendtoWait((uint8_t*) handShake, sizeof(handShake), SERVER_ADDRESS)) {
 
     // Now wait for the reply from the server telling us how much of the data file it has
     uint8_t len = sizeof(buf);
@@ -424,24 +429,27 @@ void loop(void) {
     if (manager.recvfromAckTimeout(buf, &len, TIMEOUT, &from)) {
 
       // print the server reply
-      strcpy(msg, (char*)buf);
-      strcat(msg, " ");
+      // strcpy(msg, (char*)buf);
+      // strcat(msg, " ");
 
       // convert to an integer
-      int serverFileLength = atoi(msg);
+      // unsigned long serverFileLength = msg;
+      unsigned long serverFileLength = *buf;
+
       Serial.print("Server file length: ");
-      Serial.println(serverFileLength,DEC);
+      Serial.println(serverFileLength, DEC);
 
       // open the file for writing
       File dataFile = SD.open(tempSensors_object.filename, FILE_READ);
 
       // if the file is available
       if (dataFile) {
+
         // get the file length
-        int stationFileLength = dataFile.size();
+        unsigned long stationFileLength = dataFile.size();
 
         Serial.print("Station file length: ");
-        Serial.println(stationFileLength,DEC);
+        Serial.println(stationFileLength, DEC);
 
         // if the file is longer than what the server has
         if (serverFileLength < stationFileLength) {
@@ -462,7 +470,7 @@ void loop(void) {
             memset(sendBuf, 0, sizeof(sendBuf));
 
             // read a 256 byte chunk
-            int numBytesRead = dataFile.readBytes(sendBuf,sendLength);
+            int numBytesRead = dataFile.readBytes(sendBuf, sendLength);
 
             // print the data that we're going to send
             // Serial.println("Sending the following data to the server: ");
@@ -479,8 +487,8 @@ void loop(void) {
       }
 
       // send a closure message
-      char closureMessage[] = "9999";
-      manager.sendtoWait((uint8_t*) closureMessage, sizeof(closureMessage), SERVER_ADDRESS);
+      uint8_t closureMessage = 0;
+      manager.sendtoWait((uint8_t*) &closureMessage, sizeof(&closureMessage), SERVER_ADDRESS);
     }
     else
     {
@@ -507,7 +515,7 @@ void loop(void) {
 
   // debug
   trigger = false;
-  while(!trigger);
+  while (!trigger);
 }
 
 
@@ -536,7 +544,7 @@ void boardSetup() {
 }
 
 /************ init_SD ************/
-void init_SD(){
+void init_SD() {
 
   delay(100);
   // set SS pins high for turning off radio
@@ -552,14 +560,14 @@ void init_SD(){
   delay(1000);
   if (!SD.begin(SD_CS)) {
     Serial.println("SD initialization failed!");
-    while(1);
+    while (1);
   }
 }
 
 
 /************ init_RTC() ************/
 /*
-* Function to sync the RTC to compile-time timestamp
+  Function to sync the RTC to compile-time timestamp
 */
 bool init_RTC() {
 
@@ -567,7 +575,7 @@ bool init_RTC() {
   uint8_t dateArray[3];
   uint8_t timeArray[3];
 
-  if(getDate(__DATE__,dateArray) && getTime(__TIME__,timeArray)){
+  if (getDate(__DATE__, dateArray) && getTime(__TIME__, timeArray)) {
 
     rtc.begin();
     rtc.setTime(timeArray[1], timeArray[2], timeArray[3]);
@@ -575,14 +583,14 @@ bool init_RTC() {
 
   } else { // if failed, hang
     Serial.println("failed to init RTC");
-    while(1);
+    while (1);
   }
 }
 
 
 /************ init_Radio() ************/
 /*
-* Function to initialize the radio
+  Function to initialize the radio
 */
 void init_Radio() {
 
@@ -601,22 +609,22 @@ void init_Radio() {
 
 /************ alarm_one ************/
 /*
-* Function to set RTC alarm
-*
-* TODO: at this point, we are incrementing all intervals at once. This is only
-* accurate as long as we are not doing a mixed definition sampling interval,
-* e.g. as long as we define our sampling interval as some number of minutes
-* ONLY (every 15 mins, e.g.), and not as some number of hours and minutes
-*
-* takes:
-* bool initFlag: indicates whether this is the initial instance of the alarm.
-* If it is, then set the sample times as zero to sample first at the top of the interval
+  Function to set RTC alarm
+
+  TODO: at this point, we are incrementing all intervals at once. This is only
+  accurate as long as we are not doing a mixed definition sampling interval,
+  e.g. as long as we define our sampling interval as some number of minutes
+  ONLY (every 15 mins, e.g.), and not as some number of hours and minutes
+
+  takes:
+  bool initFlag: indicates whether this is the initial instance of the alarm.
+  If it is, then set the sample times as zero to sample first at the top of the interval
 */
 // bool initFlag
 void alarm_one() {
 
   // if any of the intervals are defined as zero, redefine them as their max value
-  if (SAMPLING_INTERVAL_SEC == 0){
+  if (SAMPLING_INTERVAL_SEC == 0) {
     SAMPLING_INTERVAL_SEC = 60;
   }
   if (SAMPLING_INTERVAL_MIN == 0) {
@@ -654,12 +662,12 @@ void alarm_one() {
   sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
 
   // increment the counter for the number of subinterval samples we've taken
-  nSecSamples = ((sampleSecond + SAMPLING_INTERVAL_SEC) % 60)/SAMPLING_INTERVAL_SEC;
-  nMinSamples = ((sampleMinute + SAMPLING_INTERVAL_MIN) % 60)/SAMPLING_INTERVAL_MIN;
-  nHourSamples = ((sampleHour + SAMPLING_INTERVAL_HOUR) % 24)/SAMPLING_INTERVAL_HOUR;
+  nSecSamples = ((sampleSecond + SAMPLING_INTERVAL_SEC) % 60) / SAMPLING_INTERVAL_SEC;
+  nMinSamples = ((sampleMinute + SAMPLING_INTERVAL_MIN) % 60) / SAMPLING_INTERVAL_MIN;
+  nHourSamples = ((sampleHour + SAMPLING_INTERVAL_HOUR) % 24) / SAMPLING_INTERVAL_HOUR;
 
   // then set the alarm and define the interrupt
-  rtc.setAlarmTime(sampleHour,sampleMinute,sampleSecond);
+  rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
 
   // if we're sampling at some nHour interval
   if (SAMPLING_INTERVAL_HOUR != 24) {
@@ -679,8 +687,8 @@ void alarm_one() {
 
 /************ alarm_one_routine ************/
 /*
-* Dummy routine for alarm match. Nothing happens here, just kicks back to main
-* loop upon alarm
+  Dummy routine for alarm match. Nothing happens here, just kicks back to main
+  loop upon alarm
 */
 void alarm_one_routine() {
   trigger = true;
@@ -689,10 +697,10 @@ void alarm_one_routine() {
 
 /************ getTime() ************/
 /*
-* Function to parse time from system __TIME__ string. From Paul Stoffregen
-* DS1307RTC library example SetTime.ino
+  Function to parse time from system __TIME__ string. From Paul Stoffregen
+  DS1307RTC library example SetTime.ino
 */
-bool getTime(const char *str,uint8_t* timeArray)
+bool getTime(const char *str, uint8_t* timeArray)
 {
   int Hour, Min, Sec;
 
@@ -709,10 +717,10 @@ bool getTime(const char *str,uint8_t* timeArray)
 
 /************ getDate() ************/
 /*
-* Function to parse date from system __TIME__ string. Modified from Paul
-* Stoffregen's DS1307RTC library example SetTime.ino
+  Function to parse date from system __TIME__ string. Modified from Paul
+  Stoffregen's DS1307RTC library example SetTime.ino
 */
-bool getDate(const char *str,uint8_t *dateArray)
+bool getDate(const char *str, uint8_t *dateArray)
 {
   char Month[12];
   int Day, Year;
@@ -736,7 +744,7 @@ bool getDate(const char *str,uint8_t *dateArray)
 
   // pack everything into a return array as uint8_ts
   dateArray[1] = (uint8_t) twoDigitYear.toInt();
-  dateArray[2] = monthIndex+1;
+  dateArray[2] = monthIndex + 1;
   dateArray[3] = (uint8_t) Day;
 
   return true;
