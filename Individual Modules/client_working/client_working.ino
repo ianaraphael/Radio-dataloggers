@@ -406,7 +406,7 @@ void loop(void) {
   char charFilename[filenameLength]; // allocate array to hold filename as chars
   (tempSensors_object.filename).toCharArray(charFilename,filenameLength); // convert to a char array
   uint8_t handShake[1 + filenameLength]; // allocate memory for handshake message
-  handShake[0] = (uint8_t) 0; // write our message type code in
+  handShake[0] = (uint8_t) 0; // write our message type code in (0 for handshake, 1 for data)
   memcpy(&handShake[1], charFilename, filenameLength); // copy the filename in
 
   // Dont put this on the stack:
@@ -433,7 +433,7 @@ void loop(void) {
       // strcat(msg, " ");
 
       // convert to an integer
-      // unsigned long serverFileLength = msg;
+      // unsigned long serverFileLength = *msg;
       unsigned long serverFileLength = *buf;
 
       Serial.print("Server file length: ");
@@ -459,9 +459,10 @@ void loop(void) {
           // seek to that point in the file
           dataFile.seek(serverFileLength);
 
-          // create a buffer
+          // create a buffer with max message length
           uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
 
+          // leave some room to prevent buffer overflow
           uint8_t sendLength = RH_RF95_MAX_MESSAGE_LEN - 4;
 
           // while we haven't sent all information
@@ -469,8 +470,11 @@ void loop(void) {
 
             memset(sendBuf, 0, sizeof(sendBuf));
 
+            // put our message type code in (1 for data)
+            sendBuf[0] = (uint8_t) 1;
+
             // read a 256 byte chunk
-            int numBytesRead = dataFile.readBytes(sendBuf, sendLength);
+            int numBytesRead = dataFile.readBytes(&sendBuf[1], sendLength-1);
 
             // print the data that we're going to send
             // Serial.println("Sending the following data to the server: ");

@@ -156,8 +156,10 @@ void loop() {
 
 
 
-        // by default
-        default:
+        // // by default
+        // default:
+
+        case 1:
 
         // print the data out
         Serial.print((char*) &buf[1]);
@@ -175,8 +177,10 @@ void loop() {
             //   delay(500);
             // }
         }
-
         break;
+
+        // default:
+        // ...do something...
       }
     }
   }
