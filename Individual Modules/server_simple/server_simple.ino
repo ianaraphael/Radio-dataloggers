@@ -99,8 +99,14 @@ void loop() {
       // if the message is from a client we're already dealing with or if we're in standby mode
       if (from == withClient || withClient == SERVER_ADDRESS) {
 
+        // add safeguard to exit client service mode after timeout, even without recieving termination message
+
         // get the first char
         uint8_t messageType = buf[0];
+
+        // // print it
+        // Serial.print("Message type code: ");
+        // Serial.println(messageType,DEC);
 
         // switch on the message contents
         switch (messageType) {
@@ -117,6 +123,8 @@ void loop() {
             Serial.print("transaction with: ");
             Serial.print(from, DEC);
             Serial.println(" terminated.");
+            Serial.println("----------");
+            Serial.println("");
 
             // close the file
             dataFile.close();
@@ -133,14 +141,22 @@ void loop() {
           filename = "";
           filename = String((char*)&buf[1]);
 
+          Serial.print("Initiating transaction with: ");
+          Serial.println(from, DEC);
+          Serial.print("Creating/opening file: ");
+          Serial.println(filename);
+
           // open the appropriate file
           dataFile = SD.open(filename, FILE_WRITE);
+          if (!dataFile) {
+            Serial.println("Failed to create file.");
+          }
 
           // figure out how many bytes we have
           unsigned long numBytesServer = dataFile.size();
 
           // and send a handshake back to the client
-          Serial.println("Sending handshake back to client: ");
+          Serial.print("Sending handshake back to client ");
           Serial.println(from, DEC);
 
           // Send a reply back to the originator client
@@ -150,15 +166,7 @@ void loop() {
         }
         break;
 
-        // /******************** add case to deal with getting the filename and n bytes from client ********************/
-        // // something like: first two bytes are case code, then numbytes, then filename
-        // case 1:
-
-
-
-        // // by default
-        // default:
-
+        // case 1 means it's data
         case 1:
 
         // print the data out
@@ -166,6 +174,8 @@ void loop() {
 
         // if the file is available
         if (dataFile) {
+
+          // Serial.println("Printing data to file.");
 
           // write the data to the file
           dataFile.print(String((char*) &buf[1]));
@@ -202,4 +212,8 @@ void init_SD(){
   delay(1000);
   SD.begin(SD_CS);
   delay(1000);
+  if (!SD.begin(SD_CS)) {
+    Serial.println("SD initialization failed!");
+    // while (1);
+  }
 }

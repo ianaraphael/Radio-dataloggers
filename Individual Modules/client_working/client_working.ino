@@ -16,13 +16,13 @@ bool volatile trigger = true;
 
 #define Serial SerialUSB
 
-/***************!! Station settings !!***************/
+/***************!!!!!! Station settings !!!!!!!***************/
 #define SERVER_ADDRESS 1
-#define STATION_ID 2 // station ID
-#define NUM_TEMP_SENSORS 2 // number of sensors
+#define STATION_ID 3 // station ID
+#define NUM_TEMP_SENSORS 1 // number of sensors
 uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
 uint8_t SAMPLING_INTERVAL_MIN = 0; // number of minutes between samples
-uint8_t SAMPLING_INTERVAL_SEC = 15; // number of seconds between samples
+uint8_t SAMPLING_INTERVAL_SEC = 30; // number of seconds between samples
 
 /*************** packages ***************/
 #include <OneWire.h>
@@ -48,7 +48,7 @@ const int flashChipSelect = 4;
 RTCZero rtc; // real time clock object
 
 // Radio
-#define TIMEOUT 2000 // max wait time for radio transmissions
+#define TIMEOUT 20000 // max wait time for radio transmissions in ms
 #define RADIO_CS 5 // radio chip select pin
 #define RADIO_INT 2 // radio interrupt pin
 #define RADIO_FREQ 915.0 // radio frequency
@@ -413,6 +413,9 @@ void loop(void) {
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
   // char msg[sizeof(buf)];
 
+  // goto label
+  handshake:
+
   Serial.println("Attempting to send a message to the server");
 
   // manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS))
@@ -494,16 +497,26 @@ void loop(void) {
       uint8_t closureMessage = 0;
       manager.sendtoWait((uint8_t*) &closureMessage, sizeof(&closureMessage), SERVER_ADDRESS);
     }
-    else
-    {
-      // Serial.println("Server's busy, going about my business");
+    else {
+
+      // in this case, the server received a message but we haven't gotten a
+      // handshake back. the server is busy with another client. try again in a
+      // couple of minutes.
+
+
+      Serial.println("Server's busy, gonna wait a few seconds.");
+      // build in a delay
+      delay(10000);
+      goto handshake;
+
+
     }
   }
   else {
-    // Serial.println("Server failed to acknowledge receipt");
+    // in this case, the server did not recieve the message. we'll try again at
+    // the next sampling instance.
+    Serial.println("Server failed to acknowledge receipt");
   }
-
-  // interrupts();
 
   /************ alarm schedule ************/
 
@@ -514,7 +527,7 @@ void loop(void) {
   //   USBDevice.detach();
   // }
   //
-  // // Sleep until next alarm match
+  // Sleep until next alarm match
   // rtc.standbyMode();
 
   // debug
@@ -601,6 +614,8 @@ void init_Radio() {
   // wait while the radio initializes
   while (!manager.init()) {
   }
+
+  manager.setTimeout(5000); // set timeout to 1 second
 
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then
   // you can set transmitter powers from 5 to 23 dBm:
