@@ -19,7 +19,7 @@ bool volatile trigger = true;
 /***************!! Station settings !!***************/
 #define SERVER_ADDRESS 1
 #define STATION_ID 2 // station ID
-#define NUM_TEMP_SENSORS 2 // number of sensors
+#define NUM_TEMP_SENSORS 1 // number of sensors
 uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
 uint8_t SAMPLING_INTERVAL_MIN = 0; // number of minutes between samples
 uint8_t SAMPLING_INTERVAL_SEC = 15; // number of seconds between samples

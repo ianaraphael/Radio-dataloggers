@@ -13,7 +13,7 @@
 void(* resetFunc) (void) = 0;
 
 // Data wire is connected to the Arduino digital pin 12
-#define ONE_WIRE_BUS 12
+#define ONE_WIRE_BUS 2
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);

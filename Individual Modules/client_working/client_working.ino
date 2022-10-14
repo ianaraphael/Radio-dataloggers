@@ -48,6 +48,7 @@ const int flashChipSelect = 4;
 RTCZero rtc; // real time clock object
 
 // Radio
+#define MAX_TRANSMISSION_ATTEMPTS 3 // maximumum number of times to attempt transmission per sampling cycle
 #define TIMEOUT 20000 // max wait time for radio transmissions in ms
 #define RADIO_CS 5 // radio chip select pin
 #define RADIO_INT 2 // radio interrupt pin
@@ -389,7 +390,6 @@ void loop(void) {
     // close the file
     dataFile.close();
 
-
     // flash LED to indicate successful data write
     for (int i = 0; i < 5; i++) {
       digitalWrite(13, HIGH);
@@ -413,113 +413,128 @@ void loop(void) {
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
   // char msg[sizeof(buf)];
 
-  // goto label
-  handshake:
+  // set number of transmission attempts to 0
+  int nTransmissionAttempts = 0;
 
-  Serial.println("Attempting to send a message to the server");
+  // // goto label for radio transmission block
+  // handshake:
 
-  // manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS))
+  do {
 
-  // disable intterupts during comms
-  // noInterrupts();
+    Serial.println("Attempting to send a message to the server");
 
-  // send the initial handshake message to the server
-  if (manager.sendtoWait((uint8_t*) handShake, sizeof(handShake), SERVER_ADDRESS)) {
+    // manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS))
 
-    // Now wait for the reply from the server telling us how much of the data file it has
-    uint8_t len = sizeof(buf);
-    uint8_t from;
-    if (manager.recvfromAckTimeout(buf, &len, TIMEOUT, &from)) {
+    // disable intterupts during comms
+    // noInterrupts();
 
-      // print the server reply
-      // strcpy(msg, (char*)buf);
-      // strcat(msg, " ");
+    // send the initial handshake message to the server
+    if (manager.sendtoWait((uint8_t*) handShake, sizeof(handShake), SERVER_ADDRESS)) {
 
-      // convert to an integer
-      // unsigned long serverFileLength = *msg;
-      unsigned long serverFileLength = *buf;
+      // Now wait for the reply from the server telling us how much of the data file it has
+      uint8_t len = sizeof(buf);
+      uint8_t from;
+      if (manager.recvfromAckTimeout(buf, &len, TIMEOUT, &from)) {
 
-      Serial.print("Server file length: ");
-      Serial.println(serverFileLength, DEC);
+        // print the server reply
+        // strcpy(msg, (char*)buf);
+        // strcat(msg, " ");
+        // convert to an integer
+        // unsigned long serverFileLength = *msg;
+        unsigned long serverFileLength = *buf;
 
-      // open the file for writing
-      File dataFile = SD.open(tempSensors_object.filename, FILE_READ);
+        Serial.print("Server file length: ");
+        Serial.println(serverFileLength, DEC);
 
-      // if the file is available
-      if (dataFile) {
+        // open the file for writing
+        File dataFile = SD.open(tempSensors_object.filename, FILE_READ);
 
-        // get the file length
-        unsigned long stationFileLength = dataFile.size();
+        // if the file is available
+        if (dataFile) {
 
-        Serial.print("Station file length: ");
-        Serial.println(stationFileLength, DEC);
+          // get the file length
+          unsigned long stationFileLength = dataFile.size();
 
-        // if the file is longer than what the server has
-        if (serverFileLength < stationFileLength) {
+          Serial.print("Station file length: ");
+          Serial.println(stationFileLength, DEC);
 
-          Serial.println("Sending: ");
+          // if the file is longer than what the server has
+          if (serverFileLength < stationFileLength) {
 
-          // seek to that point in the file
-          dataFile.seek(serverFileLength);
+            Serial.println("Sending: ");
 
-          // create a buffer with max message length
-          uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
+            // seek to that point in the file
+            dataFile.seek(serverFileLength);
 
-          // leave some room to prevent buffer overflow
-          uint8_t sendLength = RH_RF95_MAX_MESSAGE_LEN - 4;
+            // create a buffer with max message length
+            uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
 
-          // while we haven't sent all information
-          while (stationFileLength > dataFile.position()) {
+            // leave some room to prevent buffer overflow
+            uint8_t sendLength = RH_RF95_MAX_MESSAGE_LEN - 4;
 
-            memset(sendBuf, 0, sizeof(sendBuf));
+            // while we haven't sent all information
+            while (stationFileLength > dataFile.position()) {
 
-            // put our message type code in (1 for data)
-            sendBuf[0] = (uint8_t) 1;
+              memset(sendBuf, 0, sizeof(sendBuf));
 
-            // read a 256 byte chunk
-            int numBytesRead = dataFile.readBytes(&sendBuf[1], sendLength-1);
+              // put our message type code in (1 for data)
+              sendBuf[0] = (uint8_t) 1;
 
-            // print the data that we're going to send
-            // Serial.println("Sending the following data to the server: ");
-            Serial.print((char*) sendBuf);
-            // Serial.println("");
+              // read a 256 byte chunk
+              int numBytesRead = dataFile.readBytes(&sendBuf[1], sendLength-1);
 
-            // send the data to the server
-            manager.sendtoWait((uint8_t*) sendBuf, sendLength, SERVER_ADDRESS);
+              // print the data that we're going to send
+              // Serial.println("Sending the following data to the server: ");
+              Serial.print((char*) sendBuf);
+              // Serial.println("");
+
+              // send the data to the server
+              manager.sendtoWait((uint8_t*) sendBuf, sendLength, SERVER_ADDRESS);
+            }
           }
+
+          // close the file
+          dataFile.close();
         }
 
-        // close the file
-        dataFile.close();
-      }
+        // send a closure message
+        uint8_t closureMessage = 0;
+        manager.sendtoWait((uint8_t*) &closureMessage, sizeof(&closureMessage), SERVER_ADDRESS);
 
-      // send a closure message
-      uint8_t closureMessage = 0;
-      manager.sendtoWait((uint8_t*) &closureMessage, sizeof(&closureMessage), SERVER_ADDRESS);
+        // break out of the loop
+        break;
+      }
+      else {
+
+        // in this case, the server received a message but we haven't gotten a
+        // handshake back. the server is busy with another client. try again later
+        Serial.println("Server's busy, gonna wait a few seconds.");
+
+        // increment the number of attempts we've made
+        nTransmissionAttempts++;
+
+        // build in a random delay between 10 and 20 seconds
+        // TODO: in the future, make this a multiple of station ID to prevent collision?
+        delay(1000*random(10,21));
+
+        // jump back to the handshake and try again
+        // goto handshake;
+
+        // continue next cycle of the loop
+        continue;
+      }
     }
     else {
-
-      // in this case, the server received a message but we haven't gotten a
-      // handshake back. the server is busy with another client. try again in a
-      // couple of minutes.
-
-
-      Serial.println("Server's busy, gonna wait a few seconds.");
-      // build in a delay
-      delay(10000);
-      goto handshake;
-
-
+      // in this case, the server did not recieve the message. we'll try again at
+      // the next sampling instance.
+      Serial.println("Server failed to acknowledge receipt");
+      break;
     }
-  }
-  else {
-    // in this case, the server did not recieve the message. we'll try again at
-    // the next sampling instance.
-    Serial.println("Server failed to acknowledge receipt");
-  }
+
+  // try again if we failed and haven't reached max attempts
+} while (nTransmissionAttempts < MAX_TRANSMISSION_ATTEMPTS);
 
   /************ alarm schedule ************/
-
   // schedule the next alarm
   alarm_one();
 
