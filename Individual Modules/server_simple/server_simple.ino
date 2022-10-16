@@ -134,9 +134,6 @@ void loop() {
           // it's a transaction initiation message; change withClient to remember which client we're talking to
           withClient = from;
 
-          // initialize the SD card
-          init_SD();
-
           // get the filename
           filename = "";
           filename = String((char*)&buf[1]);
@@ -146,22 +143,32 @@ void loop() {
           Serial.print("Creating/opening file: ");
           Serial.println(filename);
 
-          // open the appropriate file
-          dataFile = SD.open(filename, FILE_WRITE);
-          if (!dataFile) {
-            Serial.println("Failed to create file.");
-          }
+          // if we succesfully init SD card
+          // TODO: use chip detect pin on server side
+          if (init_SD() == true) {
 
-          // figure out how many bytes we have
-          unsigned long numBytesServer = dataFile.size();
+            // open the appropriate file
+            dataFile = SD.open(filename, FILE_WRITE);
+            if (!dataFile) {
+              Serial.println("Failed to create file.");
+            }
 
-          // and send a handshake back to the client
-          Serial.print("Sending handshake back to client ");
-          Serial.println(from, DEC);
+            // figure out how many bytes we have
+            unsigned long numBytesServer = dataFile.size();
 
-          // Send a reply back to the originator client
-          if (!manager.sendtoWait((uint8_t *) &numBytesServer, sizeof(&numBytesServer), from)) {
-            Serial.println("Client failed to acknowledge reply");
+            // and send a handshake back to the client
+            Serial.print("Sending handshake back to client. File size: ");
+            Serial.println(numBytesServer);
+
+            // Send a reply back to the originator client
+            if (!manager.sendtoWait((uint8_t *) &numBytesServer, sizeof(&numBytesServer), from)) {
+              Serial.println("Client failed to acknowledge reply");
+            }
+            // if we haven't successfully init'd the SD card
+          } else {
+
+            // return to standby mode without responding to client
+            withClient = SERVER_ADDRESS;
           }
         }
         break;
@@ -198,7 +205,7 @@ void loop() {
 }
 
 /************ init_SD ************/
-void init_SD(){
+bool init_SD(){
 
   delay(100);
   // set SS pins high for turning off radio
@@ -214,6 +221,7 @@ void init_SD(){
   delay(1000);
   if (!SD.begin(SD_CS)) {
     Serial.println("SD initialization failed!");
-    // while (1);
+    return false;
   }
+  return true;
 }

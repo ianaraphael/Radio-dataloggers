@@ -12,17 +12,18 @@
 */
 
 // debug
+bool DEBUG = false;
 bool volatile trigger = true;
 
 #define Serial SerialUSB
 
 /***************!!!!!! Station settings !!!!!!!***************/
 #define SERVER_ADDRESS 1
-#define STATION_ID 3 // station ID
+#define STATION_ID 2 // station ID
 #define NUM_TEMP_SENSORS 1 // number of sensors
 uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
-uint8_t SAMPLING_INTERVAL_MIN = 0; // number of minutes between samples
-uint8_t SAMPLING_INTERVAL_SEC = 30; // number of seconds between samples
+uint8_t SAMPLING_INTERVAL_MIN = 5; // number of minutes between samples
+uint8_t SAMPLING_INTERVAL_SEC = 0; // number of seconds between samples
 
 /*************** packages ***************/
 #include <OneWire.h>
@@ -441,7 +442,11 @@ void loop(void) {
         // strcat(msg, " ");
         // convert to an integer
         // unsigned long serverFileLength = *msg;
-        unsigned long serverFileLength = *buf;
+        Serial.print("Received a handshake from server with length: ");
+        Serial.println(len,DEC);
+        Serial.println("");
+
+        unsigned long serverFileLength = *(unsigned long*)buf;
 
         Serial.print("Server file length: ");
         Serial.println(serverFileLength, DEC);
@@ -452,6 +457,7 @@ void loop(void) {
         // if the file is available
         if (dataFile) {
 
+          // seek to the end of the file
           // get the file length
           unsigned long stationFileLength = dataFile.size();
 
@@ -538,16 +544,18 @@ void loop(void) {
   // schedule the next alarm
   alarm_one();
 
-  // if (Serial){
-  //   USBDevice.detach();
-  // }
-  //
+  if (Serial){
+    USBDevice.detach();
+  }
+
   // Sleep until next alarm match
-  // rtc.standbyMode();
+  rtc.standbyMode();
 
   // debug
-  trigger = false;
-  while (!trigger);
+  if (DEBUG == true) {
+    trigger = false;
+    while (!trigger);
+  }
 }
 
 
@@ -725,7 +733,9 @@ void alarm_one() {
   loop upon alarm
 */
 void alarm_one_routine() {
-  trigger = true;
+  if (DEBUG == true) {
+    trigger = true;
+  }
 }
 
 
