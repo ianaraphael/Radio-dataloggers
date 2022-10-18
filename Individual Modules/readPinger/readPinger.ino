@@ -68,8 +68,21 @@ void loop() {
       }
     }
 
-    Serial.print("Digital read: ");
+    Serial.print("Digital read (string, mm): ");
     Serial.println(pingerReturn);
+
+    Serial.print("Digital read (int, mm): ");
+    unsigned long pingerReturn_long_mm = pingerReturn.toInt();
+    Serial.println(pingerReturn_long_mm,DEC);
+
+    // convert the pinger reading to cm
+    float pingerReturn_float_cm = (float)pingerReturn_long_mm/10;
+    Serial.print("Digital read (float, cm): ");
+    Serial.println(pingerReturn_float_cm,DEC);
+
+    int pingerReturn_int_cm = (int) round(pingerReturn_float_cm);
+    Serial.print("Digital read (int, cm): ");
+    Serial.println(pingerReturn_int_cm,DEC);
   }
 
   // Serial.print(" ");
