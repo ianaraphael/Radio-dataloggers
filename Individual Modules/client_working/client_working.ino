@@ -19,11 +19,11 @@ bool volatile trigger = true;
 
 /***************!!!!!! Station settings !!!!!!!***************/
 #define SERVER_ADDRESS 1
-#define STATION_ID 2 // station ID
+#define STATION_ID 9 // station ID
 #define NUM_TEMP_SENSORS 1 // number of sensors
 uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
-uint8_t SAMPLING_INTERVAL_MIN = 5; // number of minutes between samples
-uint8_t SAMPLING_INTERVAL_SEC = 0; // number of seconds between samples
+uint8_t SAMPLING_INTERVAL_MIN = 0; // number of minutes between samples
+uint8_t SAMPLING_INTERVAL_SEC = 1; // number of seconds between samples
 
 /*************** packages ***************/
 #include <OneWire.h>
@@ -46,14 +46,13 @@ RTCZero rtc; // real time clock object
 #define ONE_WIRE_BUS 7 // temp probe data line
 const int flashChipSelect = 4;
 #define TEMP_POWER 8 // temp probe power line
-#define PARASITIC 0// parasitic power supply for temperature sensors
 
 // pinger
 #define PINGER_BUS Serial1 // serial port to read pinger
 #define PINGER_POWER 11 // pinger power line
-#define PINGER_TIMEOUT 100 // timeout to prevent hang in pinger reading
+#define PINGER_TIMEOUT 100 // timeout to prevent hang in pinger reading (ms)
 #define N_PINGERSAMPLES 5 // number of samples to average for each pinger reading
-
+#define MAX_PINGER_SAMPLE_ATTEMPTS 30 // maximum number of samples to attempt in order to achieve N_PINGERSAMPLES successfully
 // SD card
 #define SD_CS 10 // SD card chip select
 #define SD_CD NAN // SD card chip DETECT. Indicates presence/absence of SD card. High when card is inserted.
@@ -135,10 +134,10 @@ public:
     // // and point the object's addresses attribute here
     // addresses = curr_addresses;
 
-    if (!PARASITIC) {
-      pinMode(powerPin, OUTPUT);
-      digitalWrite(powerPin , HIGH);
-    }
+
+    pinMode(powerPin, OUTPUT);
+    digitalWrite(powerPin , HIGH);
+
 
     // init temp sensors themselves
     this->sensors.begin();
@@ -184,7 +183,7 @@ public:
       // add a header column for each sensor
       headerInformation[3] += ", Sensor";
       headerInformation[3] += i + 1;
-      headerInformation[3] += " [ºC]";
+      headerInformation[3] += " [°C]";
     }
 
     // if a file for the station doesn't already exist
@@ -214,10 +213,10 @@ public:
       }
     }
 
-    if (!PARASITIC) {
-      // shut down the sensors until we need them
-      digitalWrite(powerPin, LOW);
-    }
+
+    // shut down the sensors until we need them
+    digitalWrite(powerPin, LOW);
+
   }
 
 
@@ -228,10 +227,9 @@ public:
   // TODO: wake/sleep the sensors in this function
   String readTempSensors(String date, String time) {
 
-    if (!PARASITIC) {
-      // write the power pin high
-      digitalWrite(powerPin, HIGH);
-    }
+    // write the power pin high
+    digitalWrite(powerPin, HIGH);
+
 
     // Call sensors.requestTemperatures() to issue a global temperature request to all devices on the bus
     sensors.requestTemperatures();
@@ -250,10 +248,8 @@ public:
       readString += this->sensors.getTempC(addresses[i]);
     }
 
-    if (!PARASITIC) {
-      // write the power pin low
-      digitalWrite(powerPin, LOW);
-    }
+    // write the power pin low
+    digitalWrite(powerPin, LOW);
 
     // return the readstring. TODO: add timestamp to the string
     return readString;
@@ -330,6 +326,7 @@ public:
 
     // try talking to the pinger
     pingerBus->begin(9600);
+    delay(800);
 
     if (!pingerBus->available()) {
       // print error
@@ -388,7 +385,7 @@ public:
   // Reads a snow pinger, returning a string with a timestamp and the
   // range value [cm] for the snow pinger
   // inputs: timestamp
-  String readSnowPinger(String date, String time, int nPingerSamples) {
+  String readSnowPinger(String date, String time, int nPingerSamples, int maxSampleAttempts) {
 
     // write the power pin high
     digitalWrite(powerPin, HIGH);
@@ -418,51 +415,95 @@ public:
       // set a timeout for reading the serial line
       Serial.setTimeout(PINGER_TIMEOUT);
 
-      // get the pinger readout
-      // The format of the pingers output is ascii: Rxxxx\r where x is a digit
-      // Thus we can read the streaming input until we catch '\r'
-      pingerReadout = pingerBus->readStringUntil('\r');
+      // declare a float to hold the pinger value samples before averaging
+      float runningSum = 0;
 
-      // copy pinger readout into the return string starting after the first char
-      pingerReturn = pingerReadout.substring(1);
+      // keep track of how many samples we've successfully collected
+      int nGoodSamples = 0;
 
-      // if the readout doesn't conform to the R + 4 digits format
-      if ((pingerReadout[0] != 'R') || (pingerReadout.length()!= 5)) {
+      int nLoops = 0;
 
-        // set the output to string "NaN"
-        pingerReturn = "NaN";
+      // loop while we have fewer than nPingerSamples
+      do {
 
-      } else {
-        // then for the following four chars
-        for (int i=1; i<5; i++) {
+        // increment our loop counter
+        nLoops++;
 
-          // if any of them aren't digits
-          if (!isdigit(pingerReadout[i])) {
+        // get the pinger readout
+        // The format of the pingers output is ascii: Rxxxx\r where x is a digit
+        // Thus we can read the streaming input until we catch '\r'
+        pingerReadout = pingerBus->readStringUntil('\r');
 
-            // set the output to string "NaN"
-            pingerReturn = "NaN";
+        // copy pinger readout into the return string starting after the first char
+        pingerReturn = pingerReadout.substring(1);
 
-            // and escape
-            break;
+        // if the readout doesn't conform to the R + 4 digits format
+        if ((pingerReadout[0] != 'R') || (pingerReadout.length()!= 5)) {
+
+          // set the output to string "NaN"
+          pingerReturn = "NaN";
+
+        } else {
+          // then for the following four chars
+          for (int i=1; i<5; i++) {
+
+            // if any of them aren't digits
+            if (!isdigit(pingerReadout[i])) {
+
+              // set the output to string "NaN"
+              pingerReturn = "NaN";
+
+              // and escape
+              break;
+            }
           }
         }
-      }
 
-      // if it's a nan reading
-      if (pingerReturn == "NaN") {
-        // add it directly to the readString
-        readString += pingerReturn;
+        // if it's a nan reading
+        if (pingerReturn == "NaN") {
+          // // add it directly to the readString
+          // readString += pingerReturn;
+
+          // continue to the next reading
+          continue;
+
+          // else it's numerical
+        } else {
+
+          // convert the pinger reading to float cm
+          unsigned long pingerReturn_long_mm = pingerReturn.toInt();
+          float pingerReturn_float_cm = (float)pingerReturn_long_mm/10;
+
+          // and add to the running sum
+          runningSum += pingerReturn_float_cm;
+
+          // increment our counter
+          nGoodSamples++;
+        }
+
+        // while we have fewer than nPingerSamples and we haven't timed out
+      } while (nGoodSamples < nPingerSamples & nLoops < maxSampleAttempts);
+
+      // if we failed to get tht req'd number of samples before timing out
+      if (nGoodSamples < nPingerSamples) {
+
+        // set readstring to NaN
+        readString += "NaN";
+
+        Serial.println("Failed to get req'd samples.");
 
       } else {
 
-        // convert the pinger reading to cm
-        unsigned long pingerReturn_long_mm = pingerReturn.toInt();
-        float pingerReturn_float_cm = (float)pingerReturn_long_mm/10;
-        int pingerReturn_int_cm = (int) round(pingerReturn_float_cm);
+        // average the running sum
+        float pingerAverage_float_cm = runningSum/nPingerSamples;
+
+        // round off and convert to int
+        int pingerAverage_int_cm = (int) round(pingerAverage_float_cm);
 
         // then add to the string
-        readString += pingerReturn_int_cm;
+        readString += pingerAverage_int_cm;
       }
+
       // if we weren't able to talk to the pinger
     } else {
 
@@ -530,7 +571,7 @@ void loop(void) {
 
   // read the data
   String tempDataString = tempSensors_object.readTempSensors(getDateString(), getTimeString());
-  String pingerDataString = pinger_object.readSnowPinger(getDateString(),getTimeString(),N_PINGERSAMPLES);
+  String pingerDataString = pinger_object.readSnowPinger(getDateString(),getTimeString(),N_PINGERSAMPLES,MAX_PINGER_SAMPLE_ATTEMPTS);
 
   // test print the data
   Serial.println(tempDataString);
