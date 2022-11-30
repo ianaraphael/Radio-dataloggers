@@ -1,6 +1,8 @@
 /*
 
-client_working.ino
+client_barrow.ino
+
+for Utqiagvik 2022.11 deployment. modifications to alarm match
 
 Radio enabled temperature sensor station with deep sleep and alarm functionality.
 Samples temperature sensors and saves to a file on SD card. Enters standby
@@ -19,11 +21,12 @@ bool volatile trigger = true;
 
 /***************!!!!!! Station settings !!!!!!!***************/
 #define SERVER_ADDRESS 0
-#define STATION_ID 6 // station ID
+#define STATION_ID 1 // station ID
 #define NUM_TEMP_SENSORS 3 // number of sensors
-uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
+// uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
 uint8_t SAMPLING_INTERVAL_MIN = 60; // number of minutes between samples
-uint8_t SAMPLING_INTERVAL_SEC = 0; // number of seconds between samples
+uint8_t ALARM_MINUTES = 0;
+// uint8_t SAMPLING_INTERVAL_SEC = 0; // number of seconds between samples
 
 /*************** packages ***************/
 #include <OneWire.h>
@@ -388,10 +391,12 @@ public:
   String readSnowPinger(String date, String time, int nPingerSamples, int maxSampleAttempts) {
 
     // write the power pin high
+    pinMode(powerPin, OUTPUT);
     digitalWrite(powerPin, HIGH);
 
     // establish serial comms with the pinger
     pingerBus->begin(9600);
+    delay(1000);
 
     // declare a string to hold the read data
     String readString = "";
@@ -719,23 +724,23 @@ If it is, then set the sample times as zero to sample first at the top of the in
 void alarm_one() {
 
   // if any of the intervals are defined as zero, redefine them as their max value
-  if (SAMPLING_INTERVAL_SEC == 0) {
-    SAMPLING_INTERVAL_SEC = 60;
-  }
-  if (SAMPLING_INTERVAL_MIN == 0) {
-    SAMPLING_INTERVAL_MIN = 60;
-  }
-  if (SAMPLING_INTERVAL_HOUR == 0) {
-    SAMPLING_INTERVAL_HOUR = 24;
-  }
+  // if (SAMPLING_INTERVAL_SEC == 0) {
+  //   SAMPLING_INTERVAL_SEC = 60;
+  // }
+  // if (SAMPLING_INTERVAL_MIN == 0) {
+  //   SAMPLING_INTERVAL_MIN = 60;
+  // }
+  // if (SAMPLING_INTERVAL_HOUR == 0) {
+  //   SAMPLING_INTERVAL_HOUR = 24;
+  // }
 
 
-  static uint8_t sampleSecond;
-  static uint8_t sampleMinute;
-  static uint8_t sampleHour;
-  static uint8_t nSecSamples = 0;
-  static uint8_t nMinSamples = 0;
-  static uint8_t nHourSamples = 0;
+  // static uint8_t sampleSecond;
+  // static uint8_t sampleMinute;
+  // static uint8_t sampleHour;
+  // static uint8_t nSecSamples = 0;
+  // static uint8_t nMinSamples = 0;
+  // static uint8_t nHourSamples = 0;
 
   // if our sample definitions are null, create them
   // if (initFlag == TRUE){
@@ -752,30 +757,31 @@ void alarm_one() {
   //   sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
   // }
 
-  sampleSecond = (nSecSamples * SAMPLING_INTERVAL_SEC) % 60;
-  sampleMinute = (nMinSamples * SAMPLING_INTERVAL_MIN) % 60;
-  sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
-
-  // increment the counter for the number of subinterval samples we've taken
-  nSecSamples = ((sampleSecond + SAMPLING_INTERVAL_SEC) % 60) / SAMPLING_INTERVAL_SEC;
-  nMinSamples = ((sampleMinute + SAMPLING_INTERVAL_MIN) % 60) / SAMPLING_INTERVAL_MIN;
-  nHourSamples = ((sampleHour + SAMPLING_INTERVAL_HOUR) % 24) / SAMPLING_INTERVAL_HOUR;
+  // sampleSecond = (nSecSamples * SAMPLING_INTERVAL_SEC) % 60;
+  // sampleMinute = (nMinSamples * SAMPLING_INTERVAL_MIN) % 60;
+  // sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
+  //
+  // // increment the counter for the number of subinterval samples we've taken
+  // nSecSamples = ((sampleSecond + SAMPLING_INTERVAL_SEC) % 60) / SAMPLING_INTERVAL_SEC;
+  // nMinSamples = ((sampleMinute + SAMPLING_INTERVAL_MIN) % 60) / SAMPLING_INTERVAL_MIN;
+  // nHourSamples = ((sampleHour + SAMPLING_INTERVAL_HOUR) % 24) / SAMPLING_INTERVAL_HOUR;
 
   // then set the alarm and define the interrupt
-  rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
-
-  // if we're sampling at some nHour interval
-  if (SAMPLING_INTERVAL_HOUR != 24) {
-    rtc.enableAlarm(rtc.MATCH_HHMMSS);
-  }
-  // if we're sampling at some nMin interval
-  else if (SAMPLING_INTERVAL_MIN != 60) {
-    rtc.enableAlarm(rtc.MATCH_MMSS);
-  }
-  // if we're sampling at some nSec interval
-  else if (SAMPLING_INTERVAL_SEC != 60) {
-    rtc.enableAlarm(rtc.MATCH_SS);
-  }
+  // rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
+  rtc.setAlarmMinutes(ALARM_MINUTES);
+  rtc.enableAlarm(rtc.MATCH_MMSS);
+  // // if we're sampling at some nHour interval
+  // if (SAMPLING_INTERVAL_HOUR != 24) {
+  //   rtc.enableAlarm(rtc.MATCH_HHMMSS);
+  // }
+  // // if we're sampling at some nMin interval
+  // else if (SAMPLING_INTERVAL_MIN != 60) {
+  //   rtc.enableAlarm(rtc.MATCH_MMSS);
+  // }
+  // // if we're sampling at some nSec interval
+  // else if (SAMPLING_INTERVAL_SEC != 60) {
+  //   rtc.enableAlarm(rtc.MATCH_SS);
+  // }
 
   rtc.attachInterrupt(alarm_one_routine);
 }

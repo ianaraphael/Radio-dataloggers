@@ -25,7 +25,7 @@
 #include <SPI.h>
 #include <SD.h>
 
-#define SERVER_ADDRESS 1
+#define SERVER_ADDRESS 0
 
 // Define pins
 #define RADIO_CS 5
