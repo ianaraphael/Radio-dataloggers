@@ -1,8 +1,6 @@
 /*
 
-client_barrow.ino
-
-for Utqiagvik 2022.11 deployment. modifications to alarm match
+client_working.ino
 
 Radio enabled temperature sensor station with deep sleep and alarm functionality.
 Samples temperature sensors and saves to a file on SD card. Enters standby
@@ -14,7 +12,7 @@ ian.th@dartmouth.edu
 */
 
 // debug
-bool DEBUG = false;
+bool DEBUG = true;
 bool volatile trigger = true;
 
 #define Serial SerialUSB
@@ -23,10 +21,9 @@ bool volatile trigger = true;
 #define SERVER_ADDRESS 0
 #define STATION_ID 1 // station ID
 #define NUM_TEMP_SENSORS 1 // number of sensors
-// uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
-uint8_t SAMPLING_INTERVAL_MIN = 1; // number of minutes between samples
-uint8_t ALARM_MINUTES = 0;
-// uint8_t SAMPLING_INTERVAL_SEC = 0; // number of seconds between samples
+uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
+uint8_t SAMPLING_INTERVAL_MIN = 0; // number of minutes between samples
+uint8_t SAMPLING_INTERVAL_SEC = 30; // number of seconds between samples
 
 /*************** packages ***************/
 #include <OneWire.h>
@@ -329,7 +326,7 @@ public:
 
     // try talking to the pinger
     pingerBus->begin(9600);
-    delay(800);
+    delay(1000);
 
     if (!pingerBus->available()) {
       // print error
@@ -391,12 +388,11 @@ public:
   String readSnowPinger(String date, String time, int nPingerSamples, int maxSampleAttempts) {
 
     // write the power pin high
-    pinMode(powerPin, OUTPUT);
     digitalWrite(powerPin, HIGH);
 
     // establish serial comms with the pinger
     pingerBus->begin(9600);
-    delay(1000);
+    delay(2000);
 
     // declare a string to hold the read data
     String readString = "";
@@ -565,7 +561,6 @@ void setup() {
 /************ main loop ************/
 void loop(void) {
 
-
   /************ object instantiation ************/
 
   // get a static temp sensors object. Created once, will persist throughout program lifetime.
@@ -582,7 +577,6 @@ void loop(void) {
   // test print the data
   Serial.println(tempDataString);
   Serial.println(pingerDataString);
-
 
   /************ file write ************/
 
@@ -605,16 +599,26 @@ void loop(void) {
   // schedule the next alarm
   alarm_one();
 
-  if (Serial){
-    USBDevice.detach();
+  // if we're not in debug mode
+  if (!DEBUG) {
+
+    // if we're connected to serial
+    if (Serial){
+      // disconnect
+      USBDevice.detach();
+    }
+
+    // Then sleep until next alarm match
+    rtc.standbyMode();
   }
 
-  // Sleep until next alarm match
-  rtc.standbyMode();
-
-  // debug
+  // if in debug mode
   if (DEBUG == true) {
+
+    // flip the trigger
     trigger = false;
+
+    // then wait for trigger to flop
     while (!trigger);
   }
 }
@@ -653,11 +657,11 @@ void init_SD() {
   digitalWrite(RADIO_CS, HIGH);
   delay(500);
   pinMode(SD_CS, OUTPUT);
-  delay(1000);
+  delay(500);
   digitalWrite(SD_CS, LOW);
-  delay(2000);
+  delay(1000);
   SD.begin(SD_CS);
-  delay(2000);
+  delay(1000);
   if (!SD.begin(SD_CS)) {
     Serial.println("SD initialization failed!");
     while (1);
@@ -726,23 +730,23 @@ If it is, then set the sample times as zero to sample first at the top of the in
 void alarm_one() {
 
   // if any of the intervals are defined as zero, redefine them as their max value
-  // if (SAMPLING_INTERVAL_SEC == 0) {
-  //   SAMPLING_INTERVAL_SEC = 60;
-  // }
-  // if (SAMPLING_INTERVAL_MIN == 0) {
-  //   SAMPLING_INTERVAL_MIN = 60;
-  // }
-  // if (SAMPLING_INTERVAL_HOUR == 0) {
-  //   SAMPLING_INTERVAL_HOUR = 24;
-  // }
+  if (SAMPLING_INTERVAL_SEC == 0) {
+    SAMPLING_INTERVAL_SEC = 60;
+  }
+  if (SAMPLING_INTERVAL_MIN == 0) {
+    SAMPLING_INTERVAL_MIN = 60;
+  }
+  if (SAMPLING_INTERVAL_HOUR == 0) {
+    SAMPLING_INTERVAL_HOUR = 24;
+  }
 
 
-  // static uint8_t sampleSecond;
-  // static uint8_t sampleMinute;
-  // static uint8_t sampleHour;
-  // static uint8_t nSecSamples = 0;
-  // static uint8_t nMinSamples = 0;
-  // static uint8_t nHourSamples = 0;
+  static uint8_t sampleSecond;
+  static uint8_t sampleMinute;
+  static uint8_t sampleHour;
+  static uint8_t nSecSamples = 0;
+  static uint8_t nMinSamples = 0;
+  static uint8_t nHourSamples = 0;
 
   // if our sample definitions are null, create them
   // if (initFlag == TRUE){
@@ -759,31 +763,30 @@ void alarm_one() {
   //   sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
   // }
 
-  // sampleSecond = (nSecSamples * SAMPLING_INTERVAL_SEC) % 60;
-  // sampleMinute = (nMinSamples * SAMPLING_INTERVAL_MIN) % 60;
-  // sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
-  //
-  // // increment the counter for the number of subinterval samples we've taken
-  // nSecSamples = ((sampleSecond + SAMPLING_INTERVAL_SEC) % 60) / SAMPLING_INTERVAL_SEC;
-  // nMinSamples = ((sampleMinute + SAMPLING_INTERVAL_MIN) % 60) / SAMPLING_INTERVAL_MIN;
-  // nHourSamples = ((sampleHour + SAMPLING_INTERVAL_HOUR) % 24) / SAMPLING_INTERVAL_HOUR;
+  sampleSecond = (nSecSamples * SAMPLING_INTERVAL_SEC) % 60;
+  sampleMinute = (nMinSamples * SAMPLING_INTERVAL_MIN) % 60;
+  sampleHour = (nHourSamples * SAMPLING_INTERVAL_HOUR) % 24;
+
+  // increment the counter for the number of subinterval samples we've taken
+  nSecSamples = ((sampleSecond + SAMPLING_INTERVAL_SEC) % 60) / SAMPLING_INTERVAL_SEC;
+  nMinSamples = ((sampleMinute + SAMPLING_INTERVAL_MIN) % 60) / SAMPLING_INTERVAL_MIN;
+  nHourSamples = ((sampleHour + SAMPLING_INTERVAL_HOUR) % 24) / SAMPLING_INTERVAL_HOUR;
 
   // then set the alarm and define the interrupt
-  // rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
-  rtc.setAlarmMinutes(ALARM_MINUTES);
-  rtc.enableAlarm(rtc.MATCH_MMSS);
-  // // if we're sampling at some nHour interval
-  // if (SAMPLING_INTERVAL_HOUR != 24) {
-  //   rtc.enableAlarm(rtc.MATCH_HHMMSS);
-  // }
-  // // if we're sampling at some nMin interval
-  // else if (SAMPLING_INTERVAL_MIN != 60) {
-  //   rtc.enableAlarm(rtc.MATCH_MMSS);
-  // }
-  // // if we're sampling at some nSec interval
-  // else if (SAMPLING_INTERVAL_SEC != 60) {
-  //   rtc.enableAlarm(rtc.MATCH_SS);
-  // }
+  rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
+
+  // if we're sampling at some nHour interval
+  if (SAMPLING_INTERVAL_HOUR != 24) {
+    rtc.enableAlarm(rtc.MATCH_HHMMSS);
+  }
+  // if we're sampling at some nMin interval
+  else if (SAMPLING_INTERVAL_MIN != 60) {
+    rtc.enableAlarm(rtc.MATCH_MMSS);
+  }
+  // if we're sampling at some nSec interval
+  else if (SAMPLING_INTERVAL_SEC != 60) {
+    rtc.enableAlarm(rtc.MATCH_SS);
+  }
 
   rtc.attachInterrupt(alarm_one_routine);
 }
