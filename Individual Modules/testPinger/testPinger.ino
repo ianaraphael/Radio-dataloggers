@@ -1,282 +1,56 @@
 /*
 
-client_barrow.ino
+testPinger.ino
 
-for Utqiagvik 2022.11 deployment. modifications to alarm match
-
-Radio enabled temperature sensor station with deep sleep and alarm functionality.
-Samples temperature sensors and saves to a file on SD card. Enters standby
-(low power) mode. Wakes up by scheduled RTC alarm interrupt. Sends data to server.
+for testing pinger interference, range, angle with two pingers
 
 Ian Raphael
 ian.th@dartmouth.edu
-2022.08.09
+2023.03.17
 */
 
 // debug
 bool DEBUG = false;
 bool volatile trigger = true;
 
-#define Serial SerialUSB
-
 /***************!!!!!! Station settings !!!!!!!***************/
-#define SERVER_ADDRESS 0
 #define STATION_ID 1 // station ID
-#define NUM_TEMP_SENSORS 1 // number of sensors
-// uint8_t SAMPLING_INTERVAL_HOUR = 0;// number of hours between samples
 uint8_t SAMPLING_INTERVAL_MIN = 1; // number of minutes between samples
 uint8_t ALARM_MINUTES = 0;
 // uint8_t SAMPLING_INTERVAL_SEC = 0; // number of seconds between samples
+#define RADIO_CS 5 // radio chip select pin
 
 /*************** packages ***************/
-#include <OneWire.h>
 #include <SerialFlash.h>
-#include <DallasTemperature.h>
 #include <SD.h>
 #include <RTCZero.h>
 #include <TimeLib.h>
-#include <RHReliableDatagram.h>
-#include <RH_RF95.h>
 #include <SPI.h>
 
 
 /*************** defines, macros, globals ***************/
 // misc.
-#define Serial SerialUSB
 RTCZero rtc; // real time clock object
 
-// Temp sensors
-#define ONE_WIRE_BUS 7 // temp probe data line
 const int flashChipSelect = 4;
-#define TEMP_POWER 8 // temp probe power line
 
 // pinger
-#define PINGER_BUS Serial1 // serial port to read pinger
-#define PINGER_POWER 11 // pinger power line
+#define PINGER1_BUS Serial // serial port to read pinger1
+#define PINGER2_BUS Serial1 // serial port to read pinger2
+
+#define PINGER1_POWER 8 // pinger power line
+#define PINGER2_POWER 11 // pinger power line
+
+int pingerID_1 = 1; // pinger ID for filename
+int pingerID_2 = 2; // pinger ID for filename
+
 #define PINGER_TIMEOUT 100 // timeout to prevent hang in pinger reading (ms)
 #define N_PINGERSAMPLES 5 // number of samples to average for each pinger reading
 #define MAX_PINGER_SAMPLE_ATTEMPTS 30 // maximum number of samples to attempt in order to achieve N_PINGERSAMPLES successfully
+
 // SD card
 #define SD_CS 10 // SD card chip select
 #define SD_CD NAN // SD card chip DETECT. Indicates presence/absence of SD card. High when card is inserted.
-
-// Radio
-#define MAX_TRANSMISSION_ATTEMPTS 3 // maximumum number of times to attempt transmission per sampling cycle
-#define TIMEOUT 20000 // max wait time for radio transmissions in ms
-#define RADIO_CS 5 // radio chip select pin
-#define RADIO_INT 2 // radio interrupt pin
-#define RADIO_FREQ 915.0 // radio frequency
-RH_RF95 driver(RADIO_CS, RADIO_INT); // Singleton instance of the radio driver
-RHReliableDatagram manager(driver, STATION_ID); // Class to manage message delivery and receipt, using the driver declared above
-
-/*************** TempSensors class ***************/
-// define a class for the temp sensors
-class TempSensors {
-
-  // make public access for everything
-public:
-
-  /* Attributes */
-  int powerPin; // power pin for the sensors
-  int dataPin; // data pin for the sensors
-
-  OneWire oneWire; // onewire obect for the dallas temp object to hold
-  DallasTemperature sensors; // the temp sensor object
-  uint8_t (*addresses)[8]; // pointer to array of device addresses
-
-  int numSensors; // number of temperature sensors in the array
-  int stationID; // measurement station ID
-
-  String filename = ""; // a filename for the data file
-  String* headerInformation; // the header information for the data file
-  int numHeaderLines = 4;
-
-
-  /*************** TempSensors object destructor ***************/
-  // destroy a TempSensors object. Frees the dynamically allocated memory (called
-  // automatically once object goes out of scope)
-  ~TempSensors() {
-
-    // // deallocate the address array
-    delete [] addresses;
-    // zero out the address
-    addresses = 0;
-
-    delete [] headerInformation;
-    // zero out the address
-    headerInformation = 0;
-  }
-
-
-  /*************** TempSensors object constructor ***************/
-  // Constructor. This takes in the input information, addresses all of the sensors,
-  // and creates the header information for the data file.
-  // IMPT: This uses dynamically allocated memory via `new`! You _must_ free the address
-  // array and the header information via the tempsensors destructor method when you are done.
-  // TODO: fully sleep the sensors at the end of this function
-  TempSensors(int data_pin, int power_pin, int num_tempSensors, int station_ID) {
-
-    // Setup a oneWire instance to communicate with any OneWire devices
-    OneWire currOneWire = OneWire(data_pin);
-
-    this->oneWire = currOneWire;
-
-    // Pass our oneWire reference to create a Dallas Temp object
-    DallasTemperature currDallasTemp = DallasTemperature(&oneWire);
-
-    this->sensors = currDallasTemp;
-
-    // copy over the other stuff that we need
-    powerPin = power_pin;
-    numSensors = num_tempSensors;
-    stationID = station_ID;
-
-    // init the address array
-    addresses = new DeviceAddress[num_tempSensors];
-
-    // // and point the object's addresses attribute here
-    // addresses = curr_addresses;
-
-
-    pinMode(powerPin, OUTPUT);
-    digitalWrite(powerPin , HIGH);
-
-
-    // init temp sensors themselves
-    this->sensors.begin();
-
-    // for every sensor
-    for (int i = 0; i < numSensors; i++) {
-
-      // if error getting the address
-      if (!(this->sensors.getAddress(addresses[i], i))) {
-
-        // print error
-        Serial.print("Couldn't find sensor at index ");
-        Serial.println(Serial.print(i), DEC);
-      }
-    }
-
-    // now create the data filename
-    filename += "stn";
-    filename += stationID;
-    filename += "_t.txt";
-    // filename += "_tempArray.txt";
-
-    // define the header information
-    headerInformation = new String[numHeaderLines];
-
-    headerInformation[0] = "DS18B20 array";
-
-    headerInformation[1] = "Station ID: ";
-    headerInformation[1] += stationID;
-
-    headerInformation[2] = "Sensor addresses: {";
-    appendAddrToStr(addresses[0], &headerInformation[2]);
-    for (int i = 1; i < numSensors; i++) {
-      headerInformation[2] += ", ";
-      appendAddrToStr(addresses[i], &headerInformation[2]);
-    }
-    headerInformation[2] += "}";
-
-    headerInformation[3] = "Date, Time";
-    // for every sensor in the array
-    for (int i = 0; i < numSensors; i++) {
-
-      // add a header column for each sensor
-      headerInformation[3] += ", Sensor";
-      headerInformation[3] += i + 1;
-      headerInformation[3] += " [°C]";
-    }
-
-    // if a file for the station doesn't already exist
-    if (!SD.exists(filename)) {
-
-      Serial.print("Creating datafile: ");
-      Serial.println(filename);
-
-      // create the file
-      File dataFile = SD.open(filename, FILE_WRITE);
-
-      // write the header information
-      // if the file is available
-      if (dataFile) {
-
-        // print the header information to the file
-        for (int i = 0; i < numHeaderLines; i++) {
-
-          dataFile.println(headerInformation[i]);
-
-          // also print to serial to confirm
-          Serial.println(headerInformation[i]);
-        }
-
-        // close the file
-        dataFile.close();
-      }
-    }
-
-
-    // shut down the sensors until we need them
-    digitalWrite(powerPin, LOW);
-
-  }
-
-
-  /*************** TempSensors readTempSensors ***************/
-  // Reads an array of temp sensors, returning a string with a timestamp and the
-  // reading for each sensor.
-  // inputs: timestamp
-  // TODO: wake/sleep the sensors in this function
-  String readTempSensors(String date, String time) {
-
-    // write the power pin high
-    digitalWrite(powerPin, HIGH);
-
-
-    // Call sensors.requestTemperatures() to issue a global temperature request to all devices on the bus
-    sensors.requestTemperatures();
-
-    // declare a string to hold the read data
-    String readString = "";
-
-    // throw the timestamp on there
-    readString = date + ", " + time;
-
-    // for every sensor on the line
-    for (int i = 0; i < numSensors; i++) {
-
-      // add its data to the string
-      readString += ", ";
-      readString += this->sensors.getTempC(addresses[i]);
-    }
-
-    // write the power pin low
-    digitalWrite(powerPin, LOW);
-
-    // return the readstring. TODO: add timestamp to the string
-    return readString;
-  }
-
-  /************ print array ************/
-  // void printArr(uint8_t *ptr, int len) {
-  //   for (int i=0; i<len; i++) {
-  //     Serial.print(ptr[i], HEX);
-  //     Serial.print(" ");
-  //   }
-  // }
-
-  void appendAddrToStr(uint8_t *addrPtr, String *strPtr) {
-    for (int i = 0; i < 8; i++) {
-      // *strPtr += "0x";
-      *strPtr += String(addrPtr[i], HEX);
-      if (i < 7) {
-        *strPtr += " ";
-      }
-    }
-  }
-};
-
 
 /*************** SnowPinger class ***************/
 // define a class for the snow pinger
@@ -312,7 +86,7 @@ public:
   // information for the data file.
   // IMPT: This uses dynamically allocated memory via `new`! You _must_ free
   // the header information via the SnowPinger destructor method when you are done.
-  SnowPinger(HardwareSerial *pinger_Bus, int power_pin, int station_ID) {
+  SnowPinger(HardwareSerial *pinger_Bus, int power_pin, int station_ID, int pingerID) {
 
     // save the pinger bus
     this->pingerBus = pinger_Bus;
@@ -333,13 +107,15 @@ public:
 
     if (!pingerBus->available()) {
       // print error
-      Serial.println("Error opening snow pinger serial comms.");
+      SerialUSB.println("Error opening snow pinger serial comms.");
     }
 
     // now create the data filename
     filename += "stn";
     filename += stationID;
-    filename += "_p.txt"; // p for pinger
+    filename += "_p_";
+    filename += pingerID; // pinger number
+    filename += ".txt"; // p for pinger
 
     // define the header information
     headerInformation = new String[numHeaderLines];
@@ -355,8 +131,8 @@ public:
     // if the file doesn't already exist
     if (!SD.exists(filename)) {
 
-      Serial.print("Creating datafile: ");
-      Serial.println(filename);
+      SerialUSB.print("Creating datafile: ");
+      SerialUSB.println(filename);
 
       // create the file
       File dataFile = SD.open(filename, FILE_WRITE);
@@ -371,7 +147,7 @@ public:
           dataFile.println(headerInformation[i]);
 
           // also print to serial to confirm
-          Serial.println(headerInformation[i]);
+          SerialUSB.println(headerInformation[i]);
         }
 
         // close the file
@@ -418,7 +194,7 @@ public:
       // returns true) but this just hangs the board since it never spits out '\r'
       // and possibly runs us out of memory.
       // set a timeout for reading the serial line
-      pingerBus.setTimeout(PINGER_TIMEOUT);
+      pingerBus->setTimeout(PINGER_TIMEOUT);
 
       // declare a float to hold the pinger value samples before averaging
       float runningSum = 0;
@@ -495,7 +271,7 @@ public:
         // set readstring to NaN
         readString += "NaN";
 
-        Serial.println("Failed to get req'd samples.");
+        SerialUSB.println("Failed to get req'd samples.");
 
       } else {
 
@@ -526,8 +302,6 @@ public:
 
 
 
-/************ TEST SCRIPT ************/
-
 // setup function
 void setup() {
 
@@ -538,28 +312,25 @@ void setup() {
   delay(5000);
 
   // Start serial communications
-  Serial.begin(9600);
-  while (!Serial); // Wait for serial comms
+  SerialUSB.begin(9600);
+  while (!SerialUSB); // Wait for serial comms
 
   // init the SD
   init_SD();
 
-  // init the radio
-  init_Radio();
-
   // init RTC
   init_RTC();
 
-  Serial.println("Board initialized successfully. Initial file creation and test data-write to follow.");
-  // Serial.println("–––––––––––––––");
+  SerialUSB.println("Board initialized successfully. Initial file creation and test data-write to follow.");
+  // SerialUSB.println("–––––––––––––––");
   // alarm_one_routine();
-  Serial.println("–––––––––––––––");
-  Serial.println("Subsequent data sampling will occur beginning on the 0th multiple of the sampling period.");
-  Serial.println("For example, if you are sampling every half hour, the next sample will occur at the top of the next hour, and subsequently every 30 minutes.");
-  Serial.println("If you are sampling every 30 seconds, the next sample will occur at the top of the next minute, and subsequently every 30 seconds.");
-  Serial.println("–––––––––––––––");
-  Serial.println("Have a great field deployment :)");
-  Serial.println("");
+  SerialUSB.println("–––––––––––––––");
+  SerialUSB.println("Subsequent data sampling will occur beginning on the 0th multiple of the sampling period.");
+  SerialUSB.println("For example, if you are sampling every half hour, the next sample will occur at the top of the next hour, and subsequently every 30 minutes.");
+  SerialUSB.println("If you are sampling every 30 seconds, the next sample will occur at the top of the next minute, and subsequently every 30 seconds.");
+  SerialUSB.println("–––––––––––––––");
+  SerialUSB.println("Have a great field deployment :)");
+  SerialUSB.println("");
 }
 
 /************ main loop ************/
@@ -568,44 +339,36 @@ void loop(void) {
 
   /************ object instantiation ************/
 
-  // get a static temp sensors object. Created once, will persist throughout program lifetime.
-  static TempSensors tempSensors_object = TempSensors(ONE_WIRE_BUS, TEMP_POWER, NUM_TEMP_SENSORS, STATION_ID);
-  // get a static pinger object. Created once, will persist throughout program lifetime.
-  static SnowPinger pinger_object = SnowPinger(&PINGER_BUS, PINGER_POWER, STATION_ID);
+  // get two static pinger objects. Created once, will persist throughout program lifetime.
+  static SnowPinger pinger1 = SnowPinger(&PINGER1_BUS , PINGER1_POWER, STATION_ID, pingerID_1);
+  static SnowPinger pinger2 = SnowPinger(&PINGER2_BUS, PINGER2_POWER, STATION_ID, pingerID_2);
 
   /************ data collection ************/
 
   // read the data
-  String tempDataString = tempSensors_object.readTempSensors(getDateString(), getTimeString());
-  String pingerDataString = pinger_object.readSnowPinger(getDateString(),getTimeString(),N_PINGERSAMPLES,MAX_PINGER_SAMPLE_ATTEMPTS);
+  String pingerDataString_1 = pinger1.readSnowPinger(getDateString(),getTimeString(),N_PINGERSAMPLES,MAX_PINGER_SAMPLE_ATTEMPTS);
+  String pingerDataString_2 = pinger2.readSnowPinger(getDateString(),getTimeString(),N_PINGERSAMPLES,MAX_PINGER_SAMPLE_ATTEMPTS);
 
   // test print the data
-  Serial.println(tempDataString);
-  Serial.println(pingerDataString);
+  SerialUSB.print("Pinger 1 test: ");
+  SerialUSB.println(pingerDataString_1);
+  SerialUSB.print("Pinger 2 test: ");
+  SerialUSB.println(pingerDataString_2);
 
 
   /************ file write ************/
 
   // write temp data to file
-  writeToFile(tempSensors_object.filename, tempDataString);
 
   // write pinger data to file
-  writeToFile(pinger_object.filename,pingerDataString);
-
-
-  /************ radio transmission ************/
-  // send the temp sensors file to server
-  radio_transmit(tempSensors_object.filename);
-
-  // send the snow pinger file to server
-  radio_transmit(pinger_object.filename);
-
+  writeToFile(pinger1.filename,pingerDataString_1);
+  writeToFile(pinger2.filename,pingerDataString_2);
 
   /************ alarm schedule ************/
   // schedule the next alarm
   alarm_one();
 
-  if (Serial){
+  if (SerialUSB){
     USBDevice.detach();
   }
 
@@ -659,11 +422,10 @@ void init_SD() {
   SD.begin(SD_CS);
   delay(2000);
   if (!SD.begin(SD_CS)) {
-    Serial.println("SD initialization failed!");
+    SerialUSB.println("SD initialization failed!");
     while (1);
   }
 }
-
 
 /************ init_RTC() ************/
 /*
@@ -682,31 +444,9 @@ bool init_RTC() {
     rtc.setDate(dateArray[3], dateArray[2], dateArray[1]);
 
   } else { // if failed, hang
-    Serial.println("failed to init RTC");
+    SerialUSB.println("failed to init RTC");
     while (1);
   }
-}
-
-
-/************ init_Radio() ************/
-/*
-Function to initialize the radio
-*/
-void init_Radio() {
-
-  // wait while the radio initializes
-  while (!manager.init()) {
-  }
-
-  manager.setTimeout(5000); // set timeout to 1 second
-
-  // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then
-  // you can set transmitter powers from 5 to 23 dBm:
-  driver.setTxPower(23, false);
-  driver.setFrequency(RADIO_FREQ);
-
-  // print surccess
-  Serial.println("Client radio initialized successfully");
 }
 
 /************ alarm_one ************/
@@ -771,7 +511,7 @@ void alarm_one() {
   // then set the alarm and define the interrupt
   // rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
   rtc.setAlarmMinutes(ALARM_MINUTES);
-  rtc.enableAlarm(rtc.MATCH_MMSS);
+  rtc.enableAlarm(rtc.MATCH_SS);
   // // if we're sampling at some nHour interval
   // if (SAMPLING_INTERVAL_HOUR != 24) {
   //   rtc.enableAlarm(rtc.MATCH_HHMMSS);
@@ -798,7 +538,6 @@ void alarm_one_routine() {
     trigger = true;
   }
 }
-
 
 /************ writeToFile ************/
 /*
@@ -827,153 +566,6 @@ void writeToFile(String filename, String dataString) {
     }
   }
 }
-
-
-/************ radio transmission ************/
-/*
-function to transmit a generic data file to the server
-*/
-void radio_transmit(String filename) {
-
-  // send a handshake message (1 byte for message type, then size of filename)
-  int filenameLength = (filename).length() + 1; // get the length of the filename
-  char charFilename[filenameLength]; // allocate array to hold filename as chars
-  (filename).toCharArray(charFilename,filenameLength); // convert to a char array
-  uint8_t handShake[1 + filenameLength]; // allocate memory for handshake message
-  handShake[0] = (uint8_t) 0; // write our message type code in (0 for handshake, 1 for data)
-  memcpy(&handShake[1], charFilename, filenameLength); // copy the filename in
-
-  // Dont put this on the stack:
-  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-  // char msg[sizeof(buf)];
-
-  // set number of transmission attempts to 0
-  int nTransmissionAttempts = 0;
-
-  // // goto label for radio transmission block
-  // handshake:
-
-  do {
-
-    Serial.println("Attempting to send a message to the server");
-
-    // manager.sendtoWait((uint8_t*) dataString.c_str(), dataString.length()+1, SERVER_ADDRESS))
-
-    // disable intterupts during comms
-    // noInterrupts();
-
-    // send the initial handshake message to the server
-    if (manager.sendtoWait((uint8_t*) handShake, sizeof(handShake), SERVER_ADDRESS)) {
-
-      // Now wait for the reply from the server telling us how much of the data file it has
-      uint8_t len = sizeof(buf);
-      uint8_t from;
-      if (manager.recvfromAckTimeout(buf, &len, TIMEOUT, &from)) {
-
-        // print the server reply
-        // strcpy(msg, (char*)buf);
-        // strcat(msg, " ");
-        // convert to an integer
-        // unsigned long serverFileLength = *msg;
-        Serial.print("Received a handshake from server with length: ");
-        Serial.println(len,DEC);
-        Serial.println("");
-
-        unsigned long serverFileLength = *(unsigned long*)buf;
-
-        Serial.print("Server file length: ");
-        Serial.println(serverFileLength, DEC);
-
-        // open the file for writing
-        File dataFile = SD.open(filename, FILE_READ);
-
-        // if the file is available
-        if (dataFile) {
-
-          // seek to the end of the file
-          // get the file length
-          unsigned long stationFileLength = dataFile.size();
-
-          Serial.print("Station file length: ");
-          Serial.println(stationFileLength, DEC);
-
-          // if the file is longer than what the server has
-          if (serverFileLength < stationFileLength) {
-
-            Serial.println("Sending: ");
-
-            // seek to that point in the file
-            dataFile.seek(serverFileLength);
-
-            // create a buffer with max message length
-            uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
-
-            // leave some room to prevent buffer overflow
-            uint8_t sendLength = RH_RF95_MAX_MESSAGE_LEN - 4;
-
-            // while we haven't sent all information
-            while (stationFileLength > dataFile.position()) {
-
-              memset(sendBuf, 0, sizeof(sendBuf));
-
-              // put our message type code in (1 for data)
-              sendBuf[0] = (uint8_t) 1;
-
-              // read a 256 byte chunk
-              int numBytesRead = dataFile.readBytes(&sendBuf[1], sendLength-1);
-
-              // print the data that we're going to send
-              // Serial.println("Sending the following data to the server: ");
-              Serial.print((char*) sendBuf);
-              // Serial.println("");
-
-              // send the data to the server
-              manager.sendtoWait((uint8_t*) sendBuf, sendLength, SERVER_ADDRESS);
-            }
-          }
-
-          // close the file
-          dataFile.close();
-        }
-
-        // send a closure message
-        uint8_t closureMessage = 0;
-        manager.sendtoWait((uint8_t*) &closureMessage, sizeof(&closureMessage), SERVER_ADDRESS);
-
-        // break out of the loop
-        break;
-      }
-      else {
-
-        // in this case, the server received a message but we haven't gotten a
-        // handshake back. the server is busy with another client. try again later
-        Serial.println("Server's busy, gonna wait a few seconds.");
-
-        // increment the number of attempts we've made
-        nTransmissionAttempts++;
-
-        // build in a random delay between 10 and 20 seconds
-        // TODO: in the future, make this a multiple of station ID to prevent collision?
-        delay(1000*random(10,21));
-
-        // jump back to the handshake and try again
-        // goto handshake;
-
-        // continue next cycle of the loop
-        continue;
-      }
-    }
-    else {
-      // in this case, the server did not recieve the message. we'll try again at
-      // the next sampling instance.
-      Serial.println("Server failed to acknowledge receipt");
-      break;
-    }
-
-    // try again if we failed and haven't reached max attempts
-  } while (nTransmissionAttempts < MAX_TRANSMISSION_ATTEMPTS);
-}
-
 
 /************ getTime() ************/
 /*

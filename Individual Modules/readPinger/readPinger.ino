@@ -20,10 +20,18 @@ void setup() {
   while(!Serial);
   Serial.println("USB Comms online");
 
+  pinMode(11,OUTPUT);
+  digitalWrite(11,HIGH);
   PINGER_BUS.begin(9600);
+
+  delay(1000);
+
 }
 
 void loop() {
+
+  delay(5000);
+
   // If we're connected to the PINGER_BUS get a reading. Since the pinger is constantly
   // spewing data when powered we only need the RX pin (we never TX to pinger)
   if (PINGER_BUS.available()) {
@@ -36,11 +44,16 @@ void loop() {
     // returns true) but this just hangs the board since it never spits out '\r'
     // and possibly runs us out of memory.
     // set a timeout for reading the serial line
-    Serial.setTimeout(PINGER_TIMEOUT);
+    PINGER_BUS.setTimeout(PINGER_TIMEOUT);
 
     // The format of the pingers output is ascii: Rxxxx\r where x is a digit
     // Thus we can read the streaming input until we catch '\r'
     // get the pinger readout
+    
+    // read 5 times then save one
+    for (int i=0;i<4;i++){
+      PINGER_BUS.readStringUntil('\r');
+    }
     pingerReadout = PINGER_BUS.readStringUntil('\r');
 
     // copy the pinger readout into the return string starting after the first char
@@ -84,11 +97,4 @@ void loop() {
     Serial.print("Digital read (int, cm): ");
     Serial.println(pingerReturn_int_cm,DEC);
   }
-
-  // Serial.print(" ");
-  // The brown wire outputs the distance in analog. Using the arduino's native
-  // 10 bit adc resolution the distance is approximately the analog value * 5
-  // Serial.println(analogRead(A1)*5);
-  delay(500);
-
 }
