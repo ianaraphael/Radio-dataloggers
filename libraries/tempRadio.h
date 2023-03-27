@@ -1,8 +1,7 @@
 /*
 
-  A library for handling file functions in temperature datalogger
-  deployments. creates, reads, writes generic datafiles given a filename and
-  header information. based on SD library
+  A library for handling radio transmissins in temperature datalogger
+  deployments.
 
   Ian Raphael
   2023.03.27
@@ -52,7 +51,7 @@ init_Radio() {
 /*
 function to transmit a generic data file to the server
 */
-void radio_transmit(String filename) {
+void sendData_fromClient(String filename) {
 
   // send a handshake message (1 byte for message type, then size of filename)
   int filenameLength = (filename).length() + 1; // get the length of the filename
@@ -104,14 +103,13 @@ void radio_transmit(String filename) {
         Serial.println(serverFileLength, DEC);
 
         // open the file for reading
-        File dataFile = SD.open(filename, FILE_READ);
+        File dataFile = openFile_read(filename);
 
         // if the file is available
         if (dataFile) {
 
-          // seek to the end of the file
           // get the file length
-          unsigned long stationFileLength = dataFile.size();
+          unsigned long stationFileLength = getFileSize(filename);
 
           Serial.print("Station file length: ");
           Serial.println(stationFileLength, DEC);
@@ -122,7 +120,7 @@ void radio_transmit(String filename) {
             Serial.println("Sending: ");
 
             // seek to that point in the file
-            dataFile.seek(serverFileLength);
+            seekToPoint(dataFile,serverFileLength);
 
             // create a buffer with max message length
             uint8_t sendBuf[RH_RF95_MAX_MESSAGE_LEN];
@@ -131,7 +129,7 @@ void radio_transmit(String filename) {
             uint8_t sendLength = RH_RF95_MAX_MESSAGE_LEN - 4;
 
             // while we haven't sent all information
-            while (stationFileLength > dataFile.position()) {
+            while (stationFileLength > getFilePosition(dataFile)) {
 
               memset(sendBuf, 0, sizeof(sendBuf));
 
@@ -139,7 +137,7 @@ void radio_transmit(String filename) {
               sendBuf[0] = (uint8_t) 1;
 
               // read a 256 byte chunk
-              int numBytesRead = dataFile.readBytes(&sendBuf[1], sendLength-1);
+              int numBytesRead = readFileBytes(dataFile, &sendBuf[1], sendLength-1);
 
               // print the data that we're going to send
               // Serial.println("Sending the following data to the server: ");
@@ -152,7 +150,7 @@ void radio_transmit(String filename) {
           }
 
           // close the file
-          dataFile.close();
+          closeFile(dataFile);
         }
 
         // send a closure message

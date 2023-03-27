@@ -7,7 +7,7 @@
   Ian Raphael
   2023.03.27
   ian.a.raphael.th@dartmouth.edu
-  
+
 */
 
 #ifndef dataFile_h
@@ -74,6 +74,91 @@ void writeToFile(String filename, String dataString) {
     }
   }
 }
+
+/************ openFile_read ************/
+/*
+function for opening a file for reading
+*/
+File openFile_read(String filename) {
+
+  File dataFile = SD.open(filename, FILE_READ);
+
+  return dataFile;
+}
+
+/************ openFile_write ************/
+/*
+function for opening a file for writing
+*/
+File openFile_read(String filename) {
+
+  File dataFile = SD.open(filename, FILE_WRITE);
+
+  return dataFile;
+}
+
+/************ openFile_write ************/
+/*
+function for opening a file for writing
+*/
+void closeFile(File dataFile) {
+  dataFile.close();
+}
+
+
+
+
+
+/************ getFileSize ************/
+/*
+wrapper function for getting filesize
+*/
+unsigned long getFileSize(File dataFile){
+
+  // get the size
+  unsigned long fileSize = dataFile.size();
+
+  // return the size
+  return fileSize;
+}
+
+/************ seekToPoint ************/
+/*
+wrapper function for seeking within a file
+*/
+void seekToPoint(File dataFile, unsigned long seekTo) {
+  // seek to the point
+  dataFile.seek(seekTo);
+}
+
+/************ getFilePosition ************/
+/*
+wrapper function for getting cursor position in file
+*/
+unsigned long getFilePosition(File dataFile) {
+
+  // get the position
+  unsigned long filePosition =  dataFile.position();
+
+  // return it
+  return filePosition;
+}
+
+
+/************ readFileBytes ************/
+/*
+wrapper function for reading a chunk of bytes
+*/
+int readFileBytes(File dataFile, uint8_t* buffer, int numBytesToRead) {
+
+  // read the data into the passed buffer, save the number of bytes we read
+  int numBytesRead = dataFile.readBytes(buffer,numBytesToRead);
+
+  // return the number of bytes we read
+  return numBytesRead;
+}
+
+
 
 /************ init_SD ************/
 void init_SD() {
