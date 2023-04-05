@@ -5,6 +5,8 @@
 volatile bool INTERRUPTED = false;
 volatile int currState = LOW;
 
+#define CS 5
+
 void setup() {
 
   SerialUSB.begin(9600);
@@ -12,26 +14,35 @@ void setup() {
   delay(5000);
 
   // pullup pin 2
-  pinMode(2,INPUT_PULLUP);
+  pinMode(CS,INPUT_PULLUP);
 
   // attach an interrupt to trigger on a low pin
-  attachInterrupt(digitalPinToInterrupt(2), simbInterruptHandler, LOW);
+  attachInterrupt(digitalPinToInterrupt(CS), simbInterruptHandler, LOW);
+
+  SerialUSB.println("I'm here");
 }
 
 void loop() {
   delay(5000);
 
   // attach the interrupt
-  attachInterrupt(digitalPinToInterrupt(2), simbInterruptHandler, LOW);
+  attachInterrupt(digitalPinToInterrupt(CS), simbInterruptHandler, LOW);
+
+  if (INTERRUPTED) {
+    // do something
+    SerialUSB.println("Interrupt triggered");
+
+    // reset flag
+    INTERRUPTED = false;
+  }
 }
 
 void simbInterruptHandler(void) {
 
-  // do something
-  SerialUSB.println("Interrupt triggered");
+  INTERRUPTED = true;
 
   // detach the interrupt so we don't get stuck in a loop
-  detachInterrupt(digitalPinToInterrupt(2));
+  detachInterrupt(digitalPinToInterrupt(CS));
 }
 
 // void callOnInterrupt(){

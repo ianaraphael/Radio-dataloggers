@@ -14,21 +14,21 @@ ian.th@dartmouth.edu
 
 #define SLAVE_ADDR 9 // sensor controller (SC) I2C Address
 #define MAX_PACKET_SIZE 32 // maximum dataframe size
-#define SC_CS 2 // sensor controller chip select
-#define CS_DELAY 100 // number of milliseconds to wait with chip select pin low
+#define SC_CS 6 // sensor controller chip select
+#define CS_DELAY 10 // number of milliseconds to wait with chip select pin low
 
 void setup() {
-
-
   // Begin serial comms
   SerialUSB.begin(9600);
 
   // Initialize I2C communications as Master
   Wire.begin();
 
-  // set pinmode for sensor controller chip select and write it high (active low)
+  // set pin mode for sensor controller chip select and write it high (active low)
   pinMode(SC_CS,OUTPUT);
   digitalWrite(SC_CS,HIGH);
+
+
 }
 
 
@@ -37,7 +37,7 @@ void loop() {
   // delay for 5 seconds
   delay(5000);
 
-  // write sc chip select (active) low to wake up SC and say we're going to ask for data
+  // write sc chip select low (active) to wake up SC and say we're going to ask for data
   digitalWrite(SC_CS,LOW);
   // delay for a moment
   delay(CS_DELAY);
@@ -46,26 +46,20 @@ void loop() {
 
   SerialUSB.println("Requesting data from sensor controller");
 
-
   // flush the wire before we start reading anything
   while(Wire.available()){
     Wire.read();
   }
 
-  // allocate an array to hold the data size indicator. we'll recast this as an (int) later
+  // allocate an array to hold the data size indicator. we'll cast this to an int later
   uint8_t byteArray[2];
 
   // ask SC to tell us how much data it has to send over
   Wire.requestFrom(SLAVE_ADDR, sizeof(uint16_t));
 
-  SerialUSB.println("received bytes:");
+  // read the data off the line
   uint8_t b1 = (uint8_t) Wire.read();
   uint8_t b2 = (uint8_t) Wire.read();
-
-  // SerialUSB.println(byteArray[0],HEX);
-  // SerialUSB.println(byteArray[1],HEX);
-  SerialUSB.println(b1,HEX);
-  SerialUSB.println(b2,HEX);
 
   // recast to an int
   uint16_t n_dataToGet = ((uint16_t) b1<<8)|b2;
@@ -84,14 +78,7 @@ void loop() {
   // while we haven't gotten all of the data
   while (n_dataToGet > 0) {
 
-    // write sc chip select (active) low to wake up SC
-    digitalWrite(SC_CS,LOW);
-    // delay for a moment
-    delay(CS_DELAY);
-    // then write high again
-    digitalWrite(SC_CS,HIGH);
-
-    // declare variable to keep track of how much data we're asking for
+    // declare variable to keep track of the packet size we're asking for
     int packetSize;
 
     // if what's left is more than the maximum packet size
@@ -103,20 +90,21 @@ void loop() {
       packetSize = n_dataToGet;
     }
 
-    SerialUSB.print("Expected this many bytes: ");
+    SerialUSB.print("We expect this many bytes from SC: ");
     SerialUSB.println(packetSize,DEC);
 
     // ask the SC to put the data on the wire
-    SerialUSB.print("SC returned this many bytes: ");
-    SerialUSB.println(Wire.requestFrom(SLAVE_ADDR,packetSize),DEC);
+    SerialUSB.print("SC put this many bytes on the wire: ");
+    int nBytesCurrPacket = Wire.requestFrom(SLAVE_ADDR,packetSize);
+    SerialUSB.println(nBytesCurrPacket,DEC);
 
     // counter variable to track where we are in the current data packet
     int i_currPacket = 0;
 
-    // then, while we haven't gotten read all of this dataframe
+    // then, while we haven't gotten read all of this packet
     while (i_currPacket<packetSize) {
 
-      // read the next byte into the array
+      // read the next byte off the wire into the array
       returnData[i_session] = Wire.read();
 
       // and increment the counters
@@ -126,9 +114,11 @@ void loop() {
 
     // now decrement n_dataToGet by the amount that we read
     n_dataToGet = n_dataToGet - packetSize;
-
   }
 
-  // print the retrieved data to serial
+  // finally, print the retrieved data to serial
+  SerialUSB.println("");
+  SerialUSB.print("Here's the data: ");
   SerialUSB.println(returnData);
+  SerialUSB.println("");
 }
