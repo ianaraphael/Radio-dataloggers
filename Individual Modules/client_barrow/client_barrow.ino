@@ -58,6 +58,7 @@ const int flashChipSelect = 4;
 #define MAX_PINGER_SAMPLE_ATTEMPTS 30 // maximum number of samples to attempt in order to achieve N_PINGERSAMPLES successfully
 // SD card
 #define SD_CS 10 // SD card chip select
+#define SD_POWER 6 // SD card power
 #define SD_CD NAN // SD card chip DETECT. Indicates presence/absence of SD card. High when card is inserted.
 
 // Radio
@@ -418,7 +419,7 @@ public:
       // returns true) but this just hangs the board since it never spits out '\r'
       // and possibly runs us out of memory.
       // set a timeout for reading the serial line
-      pingerBus.setTimeout(PINGER_TIMEOUT);
+      pingerBus->setTimeout(PINGER_TIMEOUT);
 
       // declare a float to hold the pinger value samples before averaging
       float runningSum = 0;
@@ -565,6 +566,8 @@ void setup() {
 /************ main loop ************/
 void loop(void) {
 
+  init_SD();
+  init_Radio();
 
   /************ object instantiation ************/
 
@@ -609,6 +612,28 @@ void loop(void) {
     USBDevice.detach();
   }
 
+  // deinit everything
+  // deinit_SD();
+
+  // Switch unused pins as input and enabled built-in pullup
+  for (int pinNumber = 0; pinNumber < 23; pinNumber++)
+  {
+    pinMode(pinNumber, INPUT_PULLUP);
+  }
+
+  for (int pinNumber = 32; pinNumber < 42; pinNumber++)
+  {
+    pinMode(pinNumber, INPUT_PULLUP);
+  }
+
+  pinMode(25, INPUT_PULLUP);
+  pinMode(26, INPUT_PULLUP);
+  pinMode(13,OUTPUT);
+  digitalWrite(13,LOW);
+
+  if (!driver.init()){}
+  driver.sleep();
+
   // Sleep until next alarm match
   rtc.standbyMode();
 
@@ -643,6 +668,12 @@ void boardSetup() {
   SerialFlash.sleep();
 }
 
+void deinit_SD(){
+
+  // digitalWrite(SD_POWER,LOW);
+
+}
+
 /************ init_SD ************/
 void init_SD() {
 
@@ -652,15 +683,19 @@ void init_SD() {
   delay(500);
   digitalWrite(RADIO_CS, HIGH);
   delay(500);
+  //
+  // pinMode(SD_POWER, OUTPUT);
+  // digitalWrite(SD_POWER,HIGH);
+
   pinMode(SD_CS, OUTPUT);
   delay(1000);
   digitalWrite(SD_CS, LOW);
   delay(2000);
   SD.begin(SD_CS);
   delay(2000);
+
   if (!SD.begin(SD_CS)) {
     Serial.println("SD initialization failed!");
-    while (1);
   }
 }
 
@@ -771,7 +806,8 @@ void alarm_one() {
   // then set the alarm and define the interrupt
   // rtc.setAlarmTime(sampleHour, sampleMinute, sampleSecond);
   rtc.setAlarmMinutes(ALARM_MINUTES);
-  rtc.enableAlarm(rtc.MATCH_MMSS);
+  // rtc.enableAlarm(rtc.MATCH_MMSS);
+  rtc.enableAlarm(rtc.MATCH_SS);
   // // if we're sampling at some nHour interval
   // if (SAMPLING_INTERVAL_HOUR != 24) {
   //   rtc.enableAlarm(rtc.MATCH_HHMMSS);
