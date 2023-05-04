@@ -34,7 +34,7 @@ ian.th@dartmouth.edu
 volatile int collectionState = -1;
 
 // size of the data that we need to send to SIMB
-volatile uint16_t n_dataToSend = 0;
+volatile uint16_t n_dataToSend = 0; 
 volatile uint8_t sendBuf[MAX_PACKET_SIZE+1]; // add one byte for a null terminator so that we can print on this side. not for transmission.
 volatile uint16_t packetSize;
 

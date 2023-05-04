@@ -22,7 +22,7 @@ uint8_t SAMPLING_INTERVAL_MIN = 1; // one minute sampling
 uint8_t ALARM_MINUTES = 0; // minute to sample on
 
 /*************** packages ***************/
-#include <SnowTATOS.h>
+#include <SnowTATOS_client.h>
 
 
 /*************** defines, macros, globals ***************/
