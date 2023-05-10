@@ -25,6 +25,7 @@ void setup() {
   Wire.begin();
 
   // set pin mode for sensor controller chip select and write it high (active low)
+  pinmode(SC_CS,INPUT_PULLUP);
   pinMode(SC_CS,OUTPUT);
   digitalWrite(SC_CS,HIGH);
 

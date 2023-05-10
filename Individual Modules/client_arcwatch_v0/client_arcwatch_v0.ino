@@ -10,7 +10,7 @@ ian.th@dartmouth.edu
 */
 
 // debug
-bool DEBUG = false;
+bool DEBUG = true;
 bool volatile trigger = true;
 
 /***************!!!!!! Station settings !!!!!!!***************/
@@ -26,9 +26,6 @@ uint8_t ALARM_MINUTES = 0; // minute to sample on
 
 
 /*************** defines, macros, globals ***************/
-
-// misc.
-#define Serial SerialUSB
 
 // Temp sensors
 #define ONE_WIRE_BUS 7 // temp probe data line
@@ -46,15 +43,14 @@ uint8_t ALARM_MINUTES = 0; // minute to sample on
 // setup function
 void setup() {
 
-  // setup the board
-  boardSetup();
-
   // ***** IMPORTANT DELAY FOR CODE UPLOAD BEFORE USB PORT DETACH DURING SLEEP *****
   delay(5000);
 
   // Start serial communications
-  Serial.begin(9600);
-  while (!Serial); // Wait for serial comms
+  SerialUSB.begin(9600);
+
+  // setup the board
+  boardSetup();
 
   // init the SD
   init_SD();
@@ -65,16 +61,16 @@ void setup() {
   // init RTC
   init_RTC();
 
-  Serial.println("Board initialized successfully. Initial file creation and test data-write to follow.");
-  // Serial.println("–––––––––––––––");
+  SerialUSB.println("Board initialized successfully. Initial file creation and test data-write to follow.");
+  // SerialUSB.println("–––––––––––––––");
   // alarm_one_routine();
-  Serial.println("–––––––––––––––");
-  Serial.println("Subsequent data sampling will occur beginning on the 0th multiple of the sampling period.");
-  Serial.println("For example, if you are sampling every half hour, the next sample will occur at the top of the next hour, and subsequently every 30 minutes.");
-  Serial.println("If you are sampling every 30 seconds, the next sample will occur at the top of the next minute, and subsequently every 30 seconds.");
-  Serial.println("–––––––––––––––");
-  Serial.println("Have a great field deployment :)");
-  Serial.println("");
+  SerialUSB.println("–––––––––––––––");
+  SerialUSB.println("Subsequent data sampling will occur beginning on the 0th multiple of the sampling period.");
+  SerialUSB.println("For example, if you are sampling every half hour, the next sample will occur at the top of the next hour, and subsequently every 30 minutes.");
+  SerialUSB.println("If you are sampling every 30 seconds, the next sample will occur at the top of the next minute, and subsequently every 30 seconds.");
+  SerialUSB.println("–––––––––––––––");
+  SerialUSB.println("Have a great field deployment :)");
+  SerialUSB.println("");
 }
 
 /************ main loop ************/
@@ -98,8 +94,8 @@ void loop(void) {
 
   if (DEBUG == true) {
     // test print the data
-    Serial.println(tempDataString);
-    Serial.println(pingerDataString);
+    SerialUSB.println(tempDataString);
+    SerialUSB.println(pingerDataString);
   }
 
   /************ file write ************/
@@ -122,8 +118,10 @@ void loop(void) {
   // schedule the next alarm
   alarm_one();
 
-  if (Serial){
-    USBDevice.detach();
+  if (DEBUG == false) {
+    if (SerialUSB){
+      USBDevice.detach();
+    }
   }
 
   // Switch unused pins as input and enabled built-in pullup
@@ -147,8 +145,10 @@ void loop(void) {
   if (!driver.init()){}
   driver.sleep();
 
-  // Sleep until next alarm match
-  rtc.standbyMode();
+  if (DEBUG == false) {
+    // Sleep until next alarm match
+    rtc.standbyMode();
+  }
 
   // debug
   if (DEBUG == true) {
