@@ -2,7 +2,7 @@
 
 tempController_sensorController_arcwatchTest.ino
 
-test script for to run i2c comms between simb temp controller and snowtatos
+test script to run i2c comms between simb temp controller and snowtatos
 sensor controller board
 
 Ian Raphael
@@ -17,7 +17,7 @@ void setup() {
   // Begin serial comms
   SerialUSB.begin(9600);
 
-  init_I2C_simbSide(DATA_SIZE);
+  init_I2C_simbSide();
 
 }
 
@@ -30,7 +30,7 @@ void loop() {
   // tell the sensor controller we're gonna ask for data
   alertSensorController();
 
-  // delay for a few seconds to give it a change to collect
+  // delay for a few seconds to give it a chance to collect
   delay(2000);
 
   // allocate a buffer to hold the data
