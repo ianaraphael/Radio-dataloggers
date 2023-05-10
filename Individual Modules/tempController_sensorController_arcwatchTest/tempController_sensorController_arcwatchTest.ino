@@ -13,9 +13,11 @@ ian.th@dartmouth.edu
 // Include Arduino Wire library for I2C
 #include <SnowTATOS_simbi2c.h>
 
+#define Serial SerialUSB // comment if not using rocketscream boards
+
 void setup() {
   // Begin serial comms
-  SerialUSB.begin(9600);
+  Serial.begin(9600);
 
   init_I2C_simbSide();
 
@@ -40,8 +42,8 @@ void loop() {
   getDataFromSensorController(returnData);
 
   // finally, print the retrieved data to serial
-  SerialUSB.println("");
-  SerialUSB.print("Here's the data: ");
-  SerialUSB.println(returnData);
-  SerialUSB.println("");
+  Serial.println("");
+  Serial.print("Here's the data: ");
+  Serial.println(returnData);
+  Serial.println("");
 }
