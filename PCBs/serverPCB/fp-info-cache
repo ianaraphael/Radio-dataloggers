@@ -1,4 +1,4 @@
-21601377773355730
+21606430168038051
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -318,6 +318,13 @@ Battery
 Battery_Panasonic_CR3032-VCN_Vertical_CircularHoles
 Panasonic CR-3032/VCN battery, https://industrial.panasonic.com/cdbs/www-data/pdf2/AAA4000/AAA4000D508.PDF
 battery CR-3032 coin cell vertical
+0
+2
+2
+Battery
+battery_c_cell_solderTabs
+
+
 0
 2
 2
@@ -50119,6 +50126,20 @@ DCDC-Converter XP_POWER JTE06 Dual
 0
 8
 8
+Converter_DCDC
+Pololu_D24V5F9
+
+
+0
+0
+0
+Converter_DCDC
+Pololu_logicLevelShifter
+
+
+0
+10
+10
 Crystal
 Crystal_AT310_D3.0mm_L10.0mm_Horizontal
 Crystal THT AT310 10.0mm-10.5mm length 3.0mm diameter http://www.cinetech.com.tw/upload/2011/04/20110401165201.pdf
@@ -60940,7 +60961,7 @@ Rocket_Scream_Mini_Ultra_Pro
 
 0
 38
-38
+36
 Module
 ST_Morpho_Connector_144_STLink
 ST Morpho Connector 144 With STLink
