@@ -14,12 +14,8 @@ bool DEBUG = true;
 bool volatile trigger = true;
 
 /***************!!!!!! Station settings !!!!!!!***************/
-#define STATION_ID 1 // station ID
-#define NUM_TEMP_SENSORS 1 // number of sensors
-
-// uint8_t SAMPLING_INTERVAL_MIN = 240; // four hour sampling
-uint8_t SAMPLING_INTERVAL_MIN = 1; // one minute sampling
-uint8_t ALARM_MINUTES = 0; // minute to sample on
+#define STATION_ID 3 // station ID
+#define NUM_TEMP_SENSORS 3 // number of sensors
 
 /*************** packages ***************/
 #include <SnowTATOS_client.h>
@@ -89,8 +85,8 @@ void loop(void) {
   /************ data collection ************/
 
   // read the data
-  String tempDataString = tempSensors_object.readTempSensors_dateStamp(getDateString(), getTimeString());
-  String pingerDataString = pinger_object.readSnowPinger_dateStamp(getDateString(),getTimeString(),N_PINGERSAMPLES,MAX_PINGER_SAMPLE_ATTEMPTS);
+  String tempDataString = tempSensors_object.readTempSensors_dateStamp(getDateString(), getTimeString())+"\r\n";
+  String pingerDataString = pinger_object.readSnowPinger_dateStamp(getDateString(),getTimeString(),N_PINGERSAMPLES,MAX_PINGER_SAMPLE_ATTEMPTS)+"\r\n";
 
   if (DEBUG == true) {
     // test print the data
@@ -116,7 +112,7 @@ void loop(void) {
 
   /************ alarm schedule ************/
   // schedule the next alarm
-  alarm_one();
+  setAlarm_client();
 
   if (DEBUG == false) {
     if (SerialUSB){
@@ -157,7 +153,7 @@ void loop(void) {
   }
 }
 
-/************ alarm_one ************/
+/************ setAlarm_client ************/
 /*
 Function to set RTC alarm
 
@@ -166,13 +162,19 @@ bool initFlag: indicates whether this is the initial instance of the alarm.
 If it is, then set the sample times as zero to sample first at the top of the interval
 */
 // bool initFlag
-void alarm_one() {
+void setAlarm_client() {
 
   // always sample on the 0th second
   rtc.setAlarmSeconds(0);
 
   // if we're sampling at less than an hourly rate
   if (SAMPLING_INTERVAL_MIN < 60) {
+
+    // if we've rolled over
+    if (ALARM_MINUTES >= 60) {
+      // reset
+      ALARM_MINUTES = ALARM_MINUTES - 60;
+    }
 
     // set for the next elapsed interval
     ALARM_MINUTES = rtc.getMinutes() + SAMPLING_INTERVAL_MIN;
@@ -217,6 +219,7 @@ Dummy routine for alarm match. Nothing happens here, just kicks back to main
 loop upon alarm
 */
 void alarm_one_routine() {
+
   if (DEBUG == true) {
     trigger = true;
   }
