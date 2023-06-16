@@ -34,7 +34,7 @@ void loop() {
   alertSensorController();
 
   // delay for a few seconds to give it a chance to collect
-  delay(2000);
+  delay(10000);
 
   // allocate a buffer to hold the data
   char returnData[DATA_SIZE];
