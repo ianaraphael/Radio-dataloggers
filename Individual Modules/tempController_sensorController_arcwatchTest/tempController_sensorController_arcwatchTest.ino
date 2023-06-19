@@ -63,7 +63,7 @@ void loop() {
     // allocate an array to hold the temps
     float tempArray[3];
     // unpack them
-    unpackTempData((byte*)returnData,tempArray,stn);
+    unpackTempData((uint8_t*)returnData,tempArray,stn);
 
     // and print them
     for (int i2 = 0;i2<3;i2++){
