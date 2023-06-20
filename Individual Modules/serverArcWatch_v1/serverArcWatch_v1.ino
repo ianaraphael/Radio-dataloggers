@@ -21,12 +21,11 @@ ian.a.raphael.th@dartmouth.edu
 
 */
 
-#define SIMB_DATASIZE 74
-// declare a buffer to hold simb data
-uint8_t simbData[SIMB_DATASIZE];
-
 #include "SnowTATOS.h"
 #include "SnowTATOS_i2c.h"
+
+// declare a buffer to hold simb data
+uint8_t simbData[SIMB_DATASIZE];
 
 #define Serial SerialUSB // comment if not using rocketscream boards
 
@@ -64,7 +63,7 @@ void loop() {
   // ********** radio comms with clients ********** //
 
   // allocate a buffer to hold data from a client (with some padding)
-  uint8_t currData[CLIENT_DATA_SIZE+10];
+  uint8_t currData[CLIENT_DATA_SIZE];
 
   // check for a radio transmission from a client
   int stnID = receiveData_fromClient(currData);
@@ -72,7 +71,18 @@ void loop() {
   // if we got data
   if (stnID != -1) {
 
-    // find the start byte in the simbbuffer for this station
+    Serial.print("Received data from stn ");
+    Serial.println(stnID);
+    Serial.println("");
+
+    Serial.println("Raw data: ");
+    for (int i=0; i<CLIENT_DATA_SIZE;i++){
+      Serial.print(" 0x");
+      Serial.print(currData[i],HEX);
+    }
+    Serial.println("");
+
+    // find the start byte in the simb buffer for this station
     int startByte = (stnID-1)*CLIENT_DATA_SIZE;
 
     // write the data to the buffer
@@ -89,17 +99,6 @@ void loop() {
       // and set the flag
       synchronizedWithNetwork = true;
     }
-
-    Serial.print("Received data from stn ");
-    Serial.println(stnID);
-    Serial.println("");
-
-    Serial.println("Raw data: ");
-    for (int i=0; i<CLIENT_DATA_SIZE;i++){
-      Serial.print(" 0x");
-      Serial.print(currData[i],HEX);
-    }
-    Serial.println("");
 
 
     float temps[3];

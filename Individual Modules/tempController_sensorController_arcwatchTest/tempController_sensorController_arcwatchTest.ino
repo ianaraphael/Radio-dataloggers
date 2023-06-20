@@ -11,8 +11,8 @@ ian.th@dartmouth.edu
 */
 
 // Include Arduino Wire library for I2C
-#include <SnowTATOS_simbi2c.h>
-#include "dataFile.h"
+#include "SnowTATOS.h"
+#include "SnowTATOS_simbi2c.h"
 
 #define Serial SerialUSB // comment if not using rocketscream boards
 
@@ -27,32 +27,31 @@ void setup() {
 
 void loop() {
 
-  // delay for 3 minutes
-  delay(120000);
+  // delay for 30 seconds
+  delay(30000);
 
   // tell the sensor controller we're gonna ask for data
   alertSensorController();
 
   // delay for a few seconds to give it a chance to collect
-  delay(10000);
+  delay(3000);
 
   // allocate a buffer to hold the data
-  char returnData[DATA_SIZE];
+  uint8_t returnData[SIMB_DATASIZE];
+  maskSimbData(returnData);
 
   // get the data
   getDataFromSensorController(returnData);
 
   // print the data in binary
-  for (int i=0;i<DATA_SIZE;i++){
-    SerialUSB.print(returnData[i],BIN);
+  for (int i=0;i<SIMB_DATASIZE;i++){
+    SerialUSB.print(returnData[i],HEX);
     SerialUSB.print(" ");
   }
 
-  // print the timestamp:
-
 
   // now print the data for all ten stations
-  for (int stn=1;stn<=10;stn++) {
+  for (int stn=1;stn<=NUM_STATIONS;stn++) {
 
     Serial.print("Station #");
     Serial.println(stn,DEC);
@@ -66,7 +65,7 @@ void loop() {
     unpackTempData((uint8_t*)returnData,tempArray,stn);
 
     // and print them
-    for (int i2 = 0;i2<3;i2++){
+    for (int i2 = 0;i2<NUM_TEMP_SENSORS;i2++){
       Serial.println(tempArray[i2],4);
     }
     Serial.println("");
@@ -76,11 +75,4 @@ void loop() {
 
     Serial.println("__________________________");
   }
-
-  //
-  // // finally, print the retrieved data to serial
-  // Serial.println("");
-  // Serial.print("Here's the data: ");
-  // Serial.println(returnData);
-  // Serial.println("");
 }

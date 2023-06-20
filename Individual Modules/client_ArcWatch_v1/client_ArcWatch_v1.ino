@@ -39,7 +39,7 @@ void loop() {
 
   // read the data
   uint8_t pingerData = readPinger();
-  float tempData[NUM_TEMP_SENSORS];
+  static float tempData[NUM_TEMP_SENSORS];
   readTemps(tempData);
 
   // print out the temp data
@@ -51,7 +51,7 @@ void loop() {
   Serial.println(pingerData);
 
   // allocate a buffer
-  uint8_t dataBuffer[CLIENT_DATA_SIZE+10];
+  uint8_t dataBuffer[CLIENT_DATA_SIZE];
 
   // and pack it
   packClientData(tempData, pingerData, dataBuffer);
@@ -62,7 +62,6 @@ void loop() {
     Serial.print(dataBuffer[i],HEX);
   }
   Serial.println("");
-
 
   // send the data
   sendData_fromClient(dataBuffer);
