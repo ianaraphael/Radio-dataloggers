@@ -23,14 +23,18 @@ void setup() {
   Serial.begin(9600);
   delay(5000);
 
+  // init the temperature sensors
+  initTemps();
+
   // init the radio
   init_Radio();
 
   // init the realtime clock
   init_RTC();
 
-  // init the temperature sensors
-  initTemps();
+  Serial.print("Station #");
+  Serial.print(STATION_ID,DEC);
+  Serial.println(" init'd");
 }
 
 
@@ -63,10 +67,16 @@ void loop() {
   }
   Serial.println("");
 
+  Serial.println("Attempting radio transmit");
+
   // send the data
-  sendData_fromClient(dataBuffer);
+  if(sendData_fromClient(dataBuffer)){
+    Serial.println("Successful transmit");
+  } else {
+    Serial.println("Failed transmit");
+  }
 
   // set the alarm
   setAlarm_client();
-  // rtc.standbyMode();
+  sc_RTC.standbyMode();
 }

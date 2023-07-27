@@ -21,19 +21,19 @@ ian.a.raphael.th@dartmouth.edu
 
 */
 
+#define Serial SerialUSB // comment if not using rocketscream boards
+
 #include "SnowTATOS.h"
 #include "SnowTATOS_i2c.h"
 
 // declare a buffer to hold simb data
 uint8_t simbData[SIMB_DATASIZE];
 
-#define Serial SerialUSB // comment if not using rocketscream boards
-
 void setup() {
 
   // Begin serial comms
   Serial.begin(9600);
-  delay(5000);
+  delay(10000);
 
   boardSetup();
 
@@ -43,14 +43,14 @@ void setup() {
   // init the realtime clock
   init_RTC();
 
-  // init i2c comms with the simb
-  init_I2C_scSide();
-
   // wipe the simb buffer
   memset(simbData,0, sizeof(simbData));
 
   // and paint error vals in
   maskSimbData(simbData);
+
+  // init i2c comms with the simb
+  init_I2C_scSide();
 
   // print success
   Serial.println("Server init success");
@@ -59,6 +59,14 @@ void setup() {
 
 
 void loop() {
+
+  if (justWokeUp) {
+    Serial.begin(9600);
+    delay(7000);
+    Serial.println("Just woke up");
+    digitalWrite(13, HIGH);
+    justWokeUp = false;
+  }
 
   // ********** radio comms with clients ********** //
 
@@ -94,7 +102,7 @@ void loop() {
     if (synchronizedWithNetwork == false) {
 
       // do that
-      rtc.setTime(0,0,0);
+      sc_RTC.setTime(0,0,0);
 
       // and set the flag
       synchronizedWithNetwork = true;
@@ -124,6 +132,13 @@ void loop() {
     // send data to simb
     sendDataToSimb(simbData);
 
+    Serial.println("Sent data to simb: ");
+    for (int i=0;i<SIMB_DATASIZE;i++){
+      Serial.print(" ");
+      Serial.print(simbData[i],HEX);
+    }
+    Serial.println(" ");
+
     // now reset the buffer to error vals
     maskSimbData(simbData);
   }
@@ -134,13 +149,17 @@ void loop() {
   if (synchronizedWithNetwork) {
 
     // if we've been awake for long enough
-    if (rtc.getMinutes() < 30 && rtc.getMinutes() >= ceil(SERVER_WAKE_DURATION/2)) {
+    if (sc_RTC.getMinutes() < 30 && sc_RTC.getMinutes() >= ceil(SERVER_WAKE_DURATION/2)) {
+
+      Serial.println("Going to sleep");
 
       // schedule the next sleep alarm
       setAlarm_server();
 
+      digitalWrite(13, LOW);
+
       // and go to sleep
-      rtc.standbyMode();
+      sc_RTC.standbyMode();
     }
   }
 }
