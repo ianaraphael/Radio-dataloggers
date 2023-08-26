@@ -20,10 +20,6 @@ ian.a.raphael.th@dartmouth.edu
 #include "SnowTATOS.h"
 #include "SnowTATOS_i2c.h"
 
-
-#define IRIDIUM_ENABLE           true // deactivate for testing
-
-
 // declare a buffer to hold simb data (we're actually just going to use this to transfer via iridium)
 uint8_t simbData[SIMB_DATASIZE];
 
@@ -49,21 +45,28 @@ void setup() {
 
   // print success
   Serial.println("Server init success");
+
+  // if it's not a test
+  if (!TEST) {
+
+    // we're going to sleep
+    Serial.println("Going to sleep");
+
+    bool firstAlarm=true;
+    // set the first alarm for midnight
+    setAlarm(firstAlarm);
+
+    // and go to sleep
+    sc_RTC.standbyMode();
+  }
 }
 
 
 
 void loop() {
 
-  // TODO: get the time from iridium
-
-  if (justWokeUp) {
-    Serial.begin(9600);
-    delay(7000);
-    Serial.println("Just woke up");
-    digitalWrite(13, HIGH);
-    justWokeUp = false;
-  }
+  // init the radio
+  init_Radio();
 
   // ********** radio comms with clients ********** //
 
@@ -95,16 +98,6 @@ void loop() {
       simbData[i] = currData[i-startByte];
     }
 
-    // if we're not already synced with the synced with the network
-    if (synchronizedWithNetwork == false) {
-
-      // do that
-      sc_RTC.setTime(0,0,0);
-
-      // and set the flag
-      synchronizedWithNetwork = true;
-    }
-
     float temps[3];
     unpackTempData(simbData,temps,stnID);
     uint8_t pingerValue = unpackPingerData(simbData,stnID);
@@ -117,10 +110,12 @@ void loop() {
     Serial.println(pingerValue);
   }
 
-  // TODO: wrap this in statement below
 
-  // Transmit over Iridium
-  if(IRIDIUM_ENABLE) {
+  // ********** iridium transmit and sleep ********** //
+
+  // if we've been awake for long enough (or we're testing)
+  int elapsedTime_mins = (millis() - wokeUpAtMillis)/60000;
+  if ((elapsedTime_mins >= SERVER_WAKE_DURATION) or TEST) {
 
     // write the data to the message
     for (int i=0;i<SIMB_DATASIZE;i++){
@@ -130,39 +125,55 @@ void loop() {
     // write the timestamp to the message
     message.timestamp = sc_RTC.getEpoch();
 
-    Serial.println("\nTransmitting on Iridium...");
-    iridiumOn();
-    Serial.println("Iridium is on.");
-    sendIridium();
-    iridiumOff();
-    Serial.println("Done transmitting...");
-    Serial.print("Iridium status: ");
-    Serial.println(iridiumError);
-  }
+    // if iridium is enabled
+    if (IRIDIUM_ENABLE) {
 
-  // now reset the buffer to error vals
-  maskSimbData(simbData);
+      // Transmit over Iridium
+      Serial.println("\nTransmitting on Iridium...");
 
-  // clear the sbd message
-  clearMessage();
+      // turn the iridium unit on
+      iridiumOn();
+      Serial.println("Iridium is on.");
 
-  // ********** set sleep alarm ********** //
+      // send the data
+      sendIridium();
 
-  // if we're synchronized with the network
-  if (synchronizedWithNetwork) {
+      // turn the iridium unit off
+      iridiumOff();
+      Serial.println("Done transmitting...");
 
-    // if we've been awake for long enough
-    if (sc_RTC.getMinutes() < 30 && sc_RTC.getMinutes() >= ceil(SERVER_WAKE_DURATION/2)) {
+      // print error status
+      Serial.print("Iridium status: ");
+      Serial.println(iridiumError);
 
+      // now reset the buffer to error vals
+      maskSimbData(simbData);
+
+      // clear the sbd message
+      clearMessage();
+
+      // we're going to sleep
       Serial.println("Going to sleep");
 
-      // schedule the next sleep alarm
-      setAlarm_server();
-
-      digitalWrite(13, LOW);
+      bool firstAlarm = false;
+      // schedule the next sleep alarm normally
+      setAlarm(firstAlarm);
 
       // and go to sleep
       sc_RTC.standbyMode();
+
+      // otherwise
+    } else {
+
+      // print the message that we would send
+      Serial.println("Here's what we would send on iridium: ");
+      for (int i=0;i<sizeof(message);i++){
+        Serial.print(message.bytes[i],HEX);
+        Serial.print(" ");
+      }
+
+      delay(5000);
+      Serial.println("online");
     }
   }
 }

@@ -15,6 +15,8 @@ ian.a.raphael.th@dartmouth.edu
 
 #define Serial SerialUSB // comment if not using rocketscream boards
 
+#define CLIENT_TRANSMIT_DELAY_SECS 10 // wait 30 seconds after waking before trying to transmit to server
+
 void setup() {
 
   boardSetup();
@@ -26,20 +28,38 @@ void setup() {
   // init the temperature sensors
   initTemps();
 
-  // init the radio
-  init_Radio();
-
   // init the realtime clock
   init_RTC();
+
+  // init the radio
+  init_Radio();
 
   Serial.print("Station #");
   Serial.print(STATION_ID,DEC);
   Serial.println(" init'd");
+
+  // if it's not a test
+  if (!TEST) {
+
+    // we're going to sleep
+    Serial.println("Going to sleep");
+
+    bool firstAlarm = true;
+
+    // set the first alarm for midnight
+    setAlarm(firstAlarm);
+
+    // and go to sleep
+    sc_RTC.standbyMode();
+  }
 }
 
 
 
 void loop() {
+
+  // wake the radio
+  init_Radio();
 
   // read the data
   uint8_t pingerData = readPinger();
@@ -67,16 +87,30 @@ void loop() {
   }
   Serial.println("");
 
-  Serial.println("Attempting radio transmit");
+  // if we've been awake for long enough (or testing)
+  int elapsedTime_secs = ((millis()-wokeUpAtMillis)/1000);
+  if ((elapsedTime_secs > CLIENT_TRANSMIT_DELAY_SECS) or TEST) {
 
-  // send the data
-  if(sendData_fromClient(dataBuffer)){
-    Serial.println("Successful transmit");
-  } else {
-    Serial.println("Failed transmit");
+    // send the data
+    Serial.println("Attempting radio transmit");
+
+    if(manager.sendtoWait(dataBuffer,CLIENT_DATA_SIZE, SERVER_ADDRESS)){
+      Serial.println("Successful transmit");
+    } else {
+      Serial.println("Failed transmit");
+    }
+
+    // if it's not a test, set the alarm and go to sleep
+    if (!TEST) {
+      bool firstAlarm = false;
+
+      // set the alarm
+      setAlarm(firstAlarm);
+
+      // go to sleep
+      sc_RTC.standbyMode();
+    } else {
+      delay(2000);
+    }
   }
-
-  // set the alarm
-  setAlarm_client();
-  sc_RTC.standbyMode();
 }
