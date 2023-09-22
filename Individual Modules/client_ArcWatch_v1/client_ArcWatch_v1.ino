@@ -15,7 +15,7 @@ ian.a.raphael.th@dartmouth.edu
 
 #define Serial SerialUSB // comment if not using rocketscream boards
 
-#define CLIENT_TRANSMIT_DELAY_SECS 10 // wait 30 seconds after waking before trying to transmit to server
+#define CLIENT_TRANSMIT_DELAY_SECS 10 // wait a few seconds after waking before trying to transmit to server
 
 void setup() {
 
@@ -30,6 +30,13 @@ void setup() {
 
   // init the realtime clock
   init_RTC();
+
+  Serial.print("init time (hours, min, sec): ");
+  Serial.print(sc_RTC.getHours(),DEC);
+  Serial.print(", ");
+  Serial.print(sc_RTC.getMinutes(),DEC);
+  Serial.print(", ");
+  Serial.println(sc_RTC.getSeconds(),DEC);
 
   // init the radio
   init_Radio();
@@ -48,9 +55,18 @@ void setup() {
 
     // set the first alarm for midnight
     setAlarm(firstAlarm);
+    // digitalWrite(13,LOW);
+
+    Serial.print("First alarm set for (hour, min): ");
+    Serial.print(ALARM_HOURS,DEC);
+    Serial.print(", ");
+    Serial.println(ALARM_MINUTES,DEC);
+
+    delay(1000);
 
     // and go to sleep
     sc_RTC.standbyMode();
+
   }
 }
 
@@ -58,7 +74,9 @@ void setup() {
 
 void loop() {
 
-  // wake the radio
+  pinMode(4, OUTPUT);
+  digitalWrite(4, HIGH);
+
   init_Radio();
 
   // read the data
@@ -107,8 +125,18 @@ void loop() {
       // set the alarm
       setAlarm(firstAlarm);
 
+      Serial.print("Next alarm set for (hour, min): ");
+      Serial.print(ALARM_HOURS,DEC);
+      Serial.print(", ");
+      Serial.println(ALARM_MINUTES,DEC);
+
+      delay(1000);
+
+      // digitalWrite(13,LOW);
+
       // go to sleep
       sc_RTC.standbyMode();
+
     } else {
       delay(2000);
     }

@@ -37,6 +37,14 @@ void setup() {
   // init the realtime clock
   init_RTC();
 
+  Serial.print("init time (hour,min,sec): ");
+  Serial.print(sc_RTC.getHours(),DEC);
+  Serial.print(", ");
+  Serial.print(sc_RTC.getMinutes(),DEC);
+  Serial.print(", ");
+  Serial.println(sc_RTC.getSeconds(),DEC);
+
+
   // wipe the simb buffer
   memset(simbData,0, sizeof(simbData));
 
@@ -56,6 +64,13 @@ void setup() {
     // set the first alarm for midnight
     setAlarm(firstAlarm);
 
+    Serial.print("First alarm set for (hour, min): ");
+    Serial.print(ALARM_HOURS,DEC);
+    Serial.print(", ");
+    Serial.println(ALARM_MINUTES,DEC);
+
+    delay(1000);
+
     // and go to sleep
     sc_RTC.standbyMode();
   }
@@ -65,8 +80,15 @@ void setup() {
 
 void loop() {
 
-  // init the radio
-  init_Radio();
+  pinMode(4, OUTPUT);
+  digitalWrite(4, HIGH);
+
+  // Serial.print("current time: ");
+  // Serial.print(sc_RTC.getHours(),DEC);
+  // Serial.print(", ");
+  // Serial.print(sc_RTC.getMinutes(),DEC);
+  // Serial.print(", ");
+  // Serial.println(sc_RTC.getSeconds(),DEC);
 
   // ********** radio comms with clients ********** //
 
@@ -159,21 +181,39 @@ void loop() {
       // schedule the next sleep alarm normally
       setAlarm(firstAlarm);
 
+      Serial.print("Next alarm set for (hour, min): ");
+      Serial.print(ALARM_HOURS,DEC);
+      Serial.print(", ");
+      Serial.println(ALARM_MINUTES,DEC);
+
       // and go to sleep
       sc_RTC.standbyMode();
 
       // otherwise
     } else {
 
-      // print the message that we would send
-      Serial.println("Here's what we would send on iridium: ");
-      for (int i=0;i<sizeof(message);i++){
-        Serial.print(message.bytes[i],HEX);
-        Serial.print(" ");
-      }
+      // now reset the buffer to error vals
+      maskSimbData(simbData);
 
-      delay(5000);
-      Serial.println("online");
+      // clear the sbd message
+      clearMessage();
+
+      // we're going to sleep
+      Serial.println("Going to sleep");
+
+      bool firstAlarm = false;
+      // schedule the next sleep alarm normally
+      setAlarm(firstAlarm);
+
+      Serial.print("Next alarm set for (hour, min): ");
+      Serial.print(ALARM_HOURS,DEC);
+      Serial.print(", ");
+      Serial.println(ALARM_MINUTES,DEC);
+
+      delay(1000);
+
+      // and go to sleep
+      sc_RTC.standbyMode();
     }
   }
 }
