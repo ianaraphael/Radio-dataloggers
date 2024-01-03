@@ -13,17 +13,22 @@ ian.a.raphael.th@dartmouth.edu
 
 */
 
+// **************************** defines, macros **************************** //
 #include "SnowTATOS.h"
 
-#define Serial SerialUSB // comment if not using rocketscream boards
+#define Serial Serial2
 
-#define CLIENT_TRANSMIT_DELAY_SECS 2 // wait a few seconds after waking before trying to transmit to server
+#if (STATION_ID == 0)
+  #error Client STATION_ID must not be 0!
+#endif
 
+// ********************************* setup ********************************* //
 void setup() {
 
   boardSetup();
 
   // Begin serial comms
+  Serial.swap(1);
   Serial.begin(9600);
   delay(5000);
 
@@ -33,9 +38,6 @@ void setup() {
   // init the realtime clock
   init_RTC();
 
-  // TODO: set the radio pin
-  pinMode(4, OUTPUT);
-  digitalWrite(4, HIGH);
   // init the radio
   init_Radio();
 
@@ -45,59 +47,58 @@ void setup() {
 
   // set this false on startup so that any time we black out we reattempt sync
   syncedWithServer = false;
+
+  // start listening for radio traffic
+  radio.startReceive();
 }
 
 
-
+// ******************************* main loop ******************************* //
 void loop() {
 
-  // TODO: set the radio pin
-  pinMode(4, OUTPUT);
-  digitalWrite(4, HIGH);
-
-  // init the radio
-  init_Radio();
+  Serial.println("Attempting to sync with server");
 
   // while we're not synced up with the server
   while (!syncedWithServer) {
-
     // attempt to sync up with the server
-    syncedWithServer = attemptSyncWithServer();
-
-    // if successful
-    if (syncedWithServer){
-      // break out
-      break;
-    }
-
-    // otherwise go to sleep for an interval half as long as the server wake duration
-    if (SERVER_WAKE_DURATION > 1) {
-      setSleepAlarm(SERVER_WAKE_DURATION/2);
-      LowPower.standby();
-    }
+    attemptSyncWithServer();
   }
+
+  Serial.println("Synced with server");
 
   // set the next sampling alarm
   setSleepAlarm(SAMPLING_INTERVAL_MIN);
 
-  // read the data
-  uint8_t pingerData = readPinger();
-  static float tempData[NUM_TEMP_SENSORS];
-  readTemps(tempData);
+  // get the battery voltage
+  float voltage = readBatteryVoltage();
 
-  // print out the temp data
-  Serial.println("temp data: ");
-  for (int i=0;i<NUM_TEMP_SENSORS;i++) {
-    Serial.println(tempData[i],3);
+  // read the pinger data
+  uint16_t pingerData = readPinger();
+
+  static float tempData[NUM_TEMP_SENSORS];
+  // if there are any temp sensors
+  if (NUM_TEMP_SENSORS > 0){
+    // read them
+    readTemps(tempData);
+    // print out the temp data
+    Serial.println("temp data: ");
+    for (int i=0;i<NUM_TEMP_SENSORS;i++) {
+      Serial.println(tempData[i],3);
+    }
   }
-  Serial.println("pinger data: ");
+
+  // print off
+  Serial.print("pinger data: ");
   Serial.println(pingerData);
+
+  Serial.print("voltage: ");
+  Serial.println(voltage,3);
 
   // allocate a buffer
   uint8_t dataBuffer[CLIENT_DATA_SIZE];
 
   // and pack it
-  packClientData(tempData, pingerData, dataBuffer);
+  packClientData(tempData, pingerData, voltage, dataBuffer);
 
   Serial.println("Here's the data we're sending: ");
   for (int i=0;i<CLIENT_DATA_SIZE;i++){
@@ -106,18 +107,31 @@ void loop() {
   }
   Serial.println("");
 
-  // delay for a couple of second
-  delay(CLIENT_TRANSMIT_DELAY_SECS*1000);
-
   // send the data
   Serial.println("Attempting radio transmit");
+  int transmitErrorState = sendData_fromClient(dataBuffer,CLIENT_DATA_SIZE);
 
-  if(manager.sendtoWait(dataBuffer,CLIENT_DATA_SIZE, SERVER_ADDRESS)){
+  if(transmitErrorState == 0){
     Serial.println("Successful transmit");
   } else {
-    Serial.println("Failed transmit");
+    Serial.print("Failed transmit, error ");
+    Serial.println(transmitErrorState);
   }
 
-  // go to sleep
-  LowPower.standby();
+  // if we've exceeded the number of allowable failed transmits
+  if (nFailedTransmits >= MAX_FAILED_TRANSMITS_TO_SYNC) {
+    // reset our sync flag
+    syncedWithServer = false;
+  }
+
+  // if we're synced up with the server
+  if (syncedWithServer) {
+    // put the radio to sleep
+    radio.sleep();
+
+    delay(5000);
+
+    // go to sleep
+    LowPower.standby();
+  }
 }
