@@ -42,8 +42,10 @@ void setup() {
   init_Radio();
 
   Serial.print("Station #");
+  Serial.print(SIMB_ID,DEC);
+  Serial.print("_");
   Serial.print(STATION_ID,DEC);
-  Serial.println(" init'd");
+  Serial.println(" initialized succesfully.");
 
   // set this false on startup so that any time we black out we reattempt sync
   syncedWithServer = false;
@@ -56,18 +58,24 @@ void setup() {
 // ******************************* main loop ******************************* //
 void loop() {
 
-  Serial.println("Attempting to sync with server");
+  Serial.println("Just woke up! Attempting to sync with server...");
 
+  bool explicitSync;
   // while we're not synced up with the server
   while (!syncedWithServer) {
     // attempt to sync up with the server
-    attemptSyncWithServer();
+    explicitSync = attemptSyncWithServer();
   }
-
-  Serial.println("Synced with server");
 
   // set the next sampling alarm
   setSleepAlarm(SAMPLING_INTERVAL_MIN);
+
+  // print hard/soft sync
+  if (explicitSync) {
+    Serial.println("Explicitly synced with server");
+  } else {
+    Serial.println("Implicitly synced with server");
+  }
 
   // get the battery voltage
   float voltage = readBatteryVoltage();
@@ -126,10 +134,15 @@ void loop() {
 
   // if we're synced up with the server
   if (syncedWithServer) {
+
+    Serial.print("Going to sleep for ");
+    Serial.print(SAMPLING_INTERVAL_MIN,DEC);
+    Serial.println(" minutes");
+
     // put the radio to sleep
     radio.sleep();
 
-    delay(5000);
+    delay(1000);
 
     // go to sleep
     LowPower.standby();

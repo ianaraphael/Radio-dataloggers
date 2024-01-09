@@ -43,7 +43,12 @@ void setup() {
   init_RTC();
 
   // init the radio
-  init_Radio();
+  if(!init_Radio()) {
+    Serial.println("Failed to init radio.");
+    while(1);
+  }
+
+
 
   // wipe the simb buffer
   memset(simbData,0, sizeof(simbData));
@@ -54,42 +59,47 @@ void setup() {
   init_I2C_scSide();
 
   // print success
-  Serial.println("Server init success");
+  Serial.print("Server #");
+  Serial.print(SIMB_ID,DEC);
+  Serial.println(" initialized successfully");
 }
 
 
 // ******************************* main loop ******************************* //
 void loop() {
 
-  if (justWokeUp) {
-
-    Serial.println("just woke up!");
-
-    setWakeAlarm(SERVER_WAKE_DURATION);
-
-    // do a broadcast
-
-    // allocate a broadcast buffer
-    uint8_t broadcastBuffer[2];
-
-    // put our address in it
-    broadcastBuffer[0] = (uint8_t) SERVER_ADDRESS;
-    broadcastBuffer[1] = (uint8_t) SERVER_ADDRESS;
-
-    // broadcast that we're awake
-    sendPacketTimeout(broadcastBuffer,sizeof(broadcastBuffer));
-
-    // start listening for radio traffic
-    radio.startReceive();
-  }
-
-
+  // if we're not supposed to be sleeping
   if (!timeToSleep) {
+
+    // if we just woke up
+    if (justWokeUp) {
+
+      Serial.println("Just woke up! Broadcasting sync message to network...");
+
+      // set alarm for duration to stay awake
+      setWakeAlarm(SERVER_WAKE_DURATION);
+
+      // allocate a broadcast buffer
+      uint8_t broadcastBuffer[3];
+
+      // put our address and sync_term in it
+      broadcastBuffer[0] = (uint8_t) SIMB_ID;
+      broadcastBuffer[1] = (uint8_t) SERVER_ADDRESS;
+      broadcastBuffer[2] = (uint8_t) SYNC_TERM;
+
+      // broadcast that we're awake
+      sendPacketTimeout(broadcastBuffer,sizeof(broadcastBuffer));
+
+      // start listening for radio traffic
+      radio.startReceive();
+
+      Serial.println("Listening for network radio traffic.");
+    }
 
     // ************************ client radio comms ************************ //
 
     // allocate a buffer to hold data from a client
-    uint8_t currData[CLIENT_DATA_SIZE];
+    uint8_t currData[CLIENT_DATA_SIZE+2];
 
     // check for a radio transmission from a client
     int stnID = receiveData_fromClient(currData);
@@ -136,9 +146,10 @@ void loop() {
       // unpack and print the voltage
       float voltage = unpackVoltageData(simbData,stnID);
       Serial.print("  Voltage: ");
-      Serial.println(voltage,2);
+      Serial.println(voltage,1); // 1 decimal place
     }
   }
+
 
   // ***************************** SIMB comms ***************************** //
 
@@ -154,11 +165,21 @@ void loop() {
   // if it's time to go to sleep
   if (timeToSleep) {
 
+    // if the alarm isn't already activated
+    if (!sleepAlarmActivated) {
+
+      // set the alarm
+      setSleepAlarm(SAMPLING_INTERVAL_MIN);
+
+      Serial.print("Going to sleep for ");
+      Serial.print(SAMPLING_INTERVAL_MIN-SERVER_WAKE_DURATION,DEC);
+      Serial.println(" minutes");
+    }
+
     // shut down the radio
     radio.sleep();
 
-    // set the alarm
-    setSleepAlarm(SAMPLING_INTERVAL_MIN);
+    delay(1000);
 
     // and go to sleep
     LowPower.standby();
