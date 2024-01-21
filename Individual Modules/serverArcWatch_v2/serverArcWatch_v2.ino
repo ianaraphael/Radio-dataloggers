@@ -32,7 +32,7 @@ uint8_t simbData[SIMB_DATASIZE];
 // ********************************* setup ********************************* //
 void setup() {
 
-  boardSetup();
+  boardSetup(unusedPins_server);
 
   // Begin serial comms
   Serial.swap(1);
@@ -47,8 +47,6 @@ void setup() {
     Serial.println("Failed to init radio.");
     while(1);
   }
-
-
 
   // wipe the simb buffer
   memset(simbData,0, sizeof(simbData));
@@ -179,7 +177,25 @@ void loop() {
     // shut down the radio
     radio.sleep();
 
-    delay(1000);
+    // Serial0.end();
+    pinMode(0,OUTPUT);
+    digitalWrite(0,LOW);
+    pinMode(1,OUTPUT);
+    digitalWrite(1,LOW);
+
+    Serial1.end();
+    pinMode(8,OUTPUT);
+    digitalWrite(8,LOW);
+    pinMode(9,OUTPUT);
+    digitalWrite(9,LOW);
+
+    Serial2.end();
+    pinMode(24,OUTPUT);
+    digitalWrite(24,LOW);
+    pinMode(25,OUTPUT);
+    digitalWrite(25,LOW);
+
+    delay(10);
 
     // and go to sleep
     LowPower.standby();

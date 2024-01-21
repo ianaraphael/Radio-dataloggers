@@ -25,7 +25,7 @@ ian.a.raphael.th@dartmouth.edu
 // ********************************* setup ********************************* //
 void setup() {
 
-  boardSetup();
+  boardSetup(unusedPins_client);
 
   // Begin serial comms
   Serial.swap(1);
@@ -54,18 +54,37 @@ void setup() {
   radio.startReceive();
 }
 
-
 // ******************************* main loop ******************************* //
 void loop() {
 
+  // flash the light
+  for (int i=0;i<STATION_ID;i++){
+    digitalWrite(LED_BUILTIN,HIGH);
+    delay(500);
+    digitalWrite(LED_BUILTIN,LOW);
+    delay(500);
+  }
+
+  // read the pinger data before anything else to avoid serial interference
+  volatile uint16_t pingerData = readPinger();
+
+  // make sure we're on the right serial pins
+  Serial.pins(24,25);
+  // begin our serial
+  Serial.begin(9600);
+
   Serial.println("Just woke up! Attempting to sync with server...");
 
-  bool explicitSync;
+  // variable to check if we've eplictly synced
+  volatile bool explicitSync = false;
   // while we're not synced up with the server
   while (!syncedWithServer) {
     // attempt to sync up with the server
     explicitSync = attemptSyncWithServer();
   }
+
+  // turn off the radio for now
+  radio.sleep();
 
   // set the next sampling alarm
   setSleepAlarm(SAMPLING_INTERVAL_MIN);
@@ -77,13 +96,11 @@ void loop() {
     Serial.println("Implicitly synced with server");
   }
 
-  // get the battery voltage
-  float voltage = readBatteryVoltage();
+  // print off the pinger data
+  Serial.print("pinger data: ");
+  Serial.println(pingerData);
 
-  // read the pinger data
-  uint16_t pingerData = readPinger();
-
-  static float tempData[NUM_TEMP_SENSORS];
+  float tempData[NUM_TEMP_SENSORS];
   // if there are any temp sensors
   if (NUM_TEMP_SENSORS > 0){
     // read them
@@ -95,15 +112,14 @@ void loop() {
     }
   }
 
-  // print off
-  Serial.print("pinger data: ");
-  Serial.println(pingerData);
+  // get the battery voltage
+  float voltage = readBatteryVoltage();
 
   Serial.print("voltage: ");
   Serial.println(voltage,3);
 
   // allocate a buffer
-  uint8_t dataBuffer[CLIENT_DATA_SIZE];
+  volatile uint8_t dataBuffer[CLIENT_DATA_SIZE];
 
   // and pack it
   packClientData(tempData, pingerData, voltage, dataBuffer);
@@ -141,6 +157,18 @@ void loop() {
 
     // put the radio to sleep
     radio.sleep();
+
+    // Serial0.end();
+    pinMode(0,OUTPUT);
+    digitalWrite(0,LOW);
+    pinMode(1,OUTPUT);
+    digitalWrite(1,LOW);
+
+    Serial2.end();
+    pinMode(24,OUTPUT);
+    digitalWrite(24,LOW);
+    pinMode(25,INPUT);
+    digitalWrite(25,LOW);
 
     delay(1000);
 
