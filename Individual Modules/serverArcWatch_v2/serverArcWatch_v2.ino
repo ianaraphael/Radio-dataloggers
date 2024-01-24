@@ -44,8 +44,12 @@ void setup() {
 
   // init the radio
   if(!init_Radio()) {
-    Serial.println("Failed to init radio.");
-    while(1);
+    Serial.println(F("Failed to init radio."));
+    while(1) {
+      digitalWrite(LED_BUILTIN,HIGH);
+      delay(250);
+      digitalWrite(LED_BUILTIN,LOW);
+    }
   }
 
   // wipe the simb buffer
@@ -57,14 +61,16 @@ void setup() {
   init_I2C_scSide();
 
   // print success
-  Serial.print("Server #");
+  Serial.print(F("Server #"));
   Serial.print(SIMB_ID,DEC);
-  Serial.println(" initialized successfully");
+  Serial.println(F(" initialized successfully"));
 }
 
 
 // ******************************* main loop ******************************* //
 void loop() {
+
+  // Serial.begin(9600);
 
   // if we're not supposed to be sleeping
   if (!timeToSleep) {
@@ -72,7 +78,7 @@ void loop() {
     // if we just woke up
     if (justWokeUp) {
 
-      Serial.println("Just woke up! Broadcasting sync message to network...");
+      Serial.println(F("Just woke up! Broadcasting sync message to network..."));
 
       // set alarm for duration to stay awake
       setWakeAlarm(SERVER_WAKE_DURATION);
@@ -91,7 +97,7 @@ void loop() {
       // start listening for radio traffic
       radio.startReceive();
 
-      Serial.println("Listening for network radio traffic.");
+      Serial.println(F("Listening for network radio traffic."));
     }
 
     // ************************ client radio comms ************************ //
@@ -105,16 +111,16 @@ void loop() {
     // if we got data
     if (stnID != -1) {
 
-      Serial.print("Received data from stn ");
+      Serial.print(F("Received data from stn "));
       Serial.println(stnID);
       Serial.println("");
 
-      Serial.println("Raw data: ");
+      Serial.println(F("Raw data: "));
       for (int i=0; i<CLIENT_DATA_SIZE;i++){
         Serial.print(" 0x");
         Serial.print(currData[i],HEX);
       }
-      Serial.println("");
+      Serial.println(F(""));
 
       // find the start byte in the simb buffer for this station
       int startByte = (stnID-1)*CLIENT_DATA_SIZE;
@@ -130,7 +136,7 @@ void loop() {
         // unpack and print the temp data
         float temps[NUM_TEMP_SENSORS];
         unpackTempData(simbData,temps,stnID);
-        Serial.println("  Temps:");
+        Serial.println(F("  Temps:"));
         for (int i=0; i<NUM_TEMP_SENSORS;i++){
           Serial.println(temps[i],3);
         }
@@ -138,12 +144,12 @@ void loop() {
 
       // unpack and print the pinger data
       uint16_t pingerValue = unpackPingerData(simbData,stnID);
-      Serial.print("  Pinger: ");
+      Serial.print(F("  Pinger: "));
       Serial.println(pingerValue);
 
       // unpack and print the voltage
       float voltage = unpackVoltageData(simbData,stnID);
-      Serial.print("  Voltage: ");
+      Serial.print(F("  Voltage: "));
       Serial.println(voltage,1); // 1 decimal place
     }
   }
@@ -153,6 +159,8 @@ void loop() {
 
   // if the simb has requested data
   if (simbRequestedData()) {
+    delay(500);
+    digitalWrite(LED_BUILTIN,LOW);
     // send the data
     sendDataToSimb(simbData);
   }
@@ -169,9 +177,9 @@ void loop() {
       // set the alarm
       setSleepAlarm(SAMPLING_INTERVAL_MIN);
 
-      Serial.print("Going to sleep for ");
+      Serial.print(F("Going to sleep for "));
       Serial.print(SAMPLING_INTERVAL_MIN-SERVER_WAKE_DURATION,DEC);
-      Serial.println(" minutes");
+      Serial.println(F(" minutes"));
     }
 
     // shut down the radio

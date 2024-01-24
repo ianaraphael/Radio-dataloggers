@@ -19,7 +19,7 @@ ian.a.raphael.th@dartmouth.edu
 #define Serial Serial2
 
 #if (STATION_ID == 0)
-  #error Client STATION_ID must not be 0!
+#error Client STATION_ID must not be 0!
 #endif
 
 // ********************************* setup ********************************* //
@@ -39,13 +39,43 @@ void setup() {
   init_RTC();
 
   // init the radio
-  init_Radio();
+  if(!init_Radio()){
+    // error
+    while(1) {
+      digitalWrite(LED_BUILTIN,HIGH);
+      delay(250);
+      digitalWrite(LED_BUILTIN,LOW);
+      delay(250);
+    }
+  }
 
-  Serial.print("Station #");
-  Serial.print(SIMB_ID,DEC);
-  Serial.print("_");
-  Serial.print(STATION_ID,DEC);
-  Serial.println(" initialized succesfully.");
+
+  if (PRINT_SERIAL){
+    Serial.print(F("Station #"));
+    Serial.print(SIMB_ID,DEC);
+    Serial.print(F("_"));
+    Serial.print(STATION_ID,DEC);
+    Serial.println(F(" initialized succesfully."));
+  }
+
+  // flash for simb ID
+  for (int i=0;i<SIMB_ID;i++) {
+    digitalWrite(LED_BUILTIN,HIGH);
+    delay(750);
+    digitalWrite(LED_BUILTIN,LOW);
+    delay(750);
+  }
+
+  delay(2000);
+
+  // flash for station ID
+  for (int i=0;i<STATION_ID;i++) {
+    digitalWrite(LED_BUILTIN,HIGH);
+    delay(750);
+    digitalWrite(LED_BUILTIN,LOW);
+    delay(750);
+  }
+
 
   // set this false on startup so that any time we black out we reattempt sync
   syncedWithServer = false;
@@ -57,6 +87,9 @@ void setup() {
 // ******************************* main loop ******************************* //
 void loop() {
 
+  // read the pinger data before anything else to avoid serial interference
+  volatile uint16_t pingerData = readPinger();
+
   // flash the light
   for (int i=0;i<STATION_ID;i++){
     digitalWrite(LED_BUILTIN,HIGH);
@@ -65,15 +98,14 @@ void loop() {
     delay(500);
   }
 
-  // read the pinger data before anything else to avoid serial interference
-  volatile uint16_t pingerData = readPinger();
+  if (PRINT_SERIAL){
+    // make sure we're on the right serial pins
+    Serial.pins(24,25);
+    // begin our serial
+    Serial.begin(9600);
+    Serial.println(F("Just woke up! Attempting to sync with server..."));
+  }
 
-  // make sure we're on the right serial pins
-  Serial.pins(24,25);
-  // begin our serial
-  Serial.begin(9600);
-
-  Serial.println("Just woke up! Attempting to sync with server...");
 
   // variable to check if we've eplictly synced
   volatile bool explicitSync = false;
@@ -83,40 +115,46 @@ void loop() {
     explicitSync = attemptSyncWithServer();
   }
 
-  // turn off the radio for now
-  radio.sleep();
-
   // set the next sampling alarm
   setSleepAlarm(SAMPLING_INTERVAL_MIN);
 
-  // print hard/soft sync
-  if (explicitSync) {
-    Serial.println("Explicitly synced with server");
-  } else {
-    Serial.println("Implicitly synced with server");
+  if (PRINT_SERIAL){
+    // print hard/soft sync
+    if (explicitSync) {
+      Serial.println(F("Explicitly synced with server"));
+    } else {
+      Serial.println(F("Implicitly synced with server"));
+    }
   }
 
-  // print off the pinger data
-  Serial.print("pinger data: ");
-  Serial.println(pingerData);
+
+  if (PRINT_SERIAL){
+    // print off the pinger data
+    Serial.print(F("pinger data: "));
+    Serial.println(pingerData);
+  }
 
   float tempData[NUM_TEMP_SENSORS];
   // if there are any temp sensors
   if (NUM_TEMP_SENSORS > 0){
     // read them
     readTemps(tempData);
-    // print out the temp data
-    Serial.println("temp data: ");
-    for (int i=0;i<NUM_TEMP_SENSORS;i++) {
-      Serial.println(tempData[i],3);
+
+    if (PRINT_SERIAL){
+      // print out the temp data
+      Serial.println(F("temp data: "));
+      for (int i=0;i<NUM_TEMP_SENSORS;i++) {
+        Serial.println(tempData[i],3);
+      }
     }
   }
 
   // get the battery voltage
   float voltage = readBatteryVoltage();
-
-  Serial.print("voltage: ");
-  Serial.println(voltage,3);
+  if (PRINT_SERIAL){
+    Serial.print(F("voltage: "));
+    Serial.println(voltage,3);
+  }
 
   // allocate a buffer
   volatile uint8_t dataBuffer[CLIENT_DATA_SIZE];
@@ -124,22 +162,28 @@ void loop() {
   // and pack it
   packClientData(tempData, pingerData, voltage, dataBuffer);
 
-  Serial.println("Here's the data we're sending: ");
-  for (int i=0;i<CLIENT_DATA_SIZE;i++){
-    Serial.print(" 0x");
-    Serial.print(dataBuffer[i],HEX);
+  if (PRINT_SERIAL){
+    Serial.println(F("Here's the data we're sending: "));
+    for (int i=0;i<CLIENT_DATA_SIZE;i++){
+      Serial.print(F(" 0x"));
+      Serial.print(dataBuffer[i],HEX);
+    }
+    Serial.println("");
   }
-  Serial.println("");
 
   // send the data
-  Serial.println("Attempting radio transmit");
+  if (PRINT_SERIAL){
+    Serial.println(F("Attempting radio transmit"));
+  }
   int transmitErrorState = sendData_fromClient(dataBuffer,CLIENT_DATA_SIZE);
 
-  if(transmitErrorState == 0){
-    Serial.println("Successful transmit");
-  } else {
-    Serial.print("Failed transmit, error ");
-    Serial.println(transmitErrorState);
+  if (PRINT_SERIAL){
+    if(transmitErrorState == 0){
+      Serial.println(F("Successful transmit"));
+    } else {
+      Serial.print(F("Failed transmit, error "));
+      Serial.println(transmitErrorState);
+    }
   }
 
   // if we've exceeded the number of allowable failed transmits
@@ -151,26 +195,16 @@ void loop() {
   // if we're synced up with the server
   if (syncedWithServer) {
 
-    Serial.print("Going to sleep for ");
-    Serial.print(SAMPLING_INTERVAL_MIN,DEC);
-    Serial.println(" minutes");
+    if (PRINT_SERIAL){
+      Serial.print(F("Going to sleep for "));
+      Serial.print(SAMPLING_INTERVAL_MIN,DEC);
+      Serial.println(F(" minutes"));
+    }
 
     // put the radio to sleep
     radio.sleep();
 
-    // Serial0.end();
-    pinMode(0,OUTPUT);
-    digitalWrite(0,LOW);
-    pinMode(1,OUTPUT);
-    digitalWrite(1,LOW);
-
-    Serial2.end();
-    pinMode(24,OUTPUT);
-    digitalWrite(24,LOW);
-    pinMode(25,INPUT);
-    digitalWrite(25,LOW);
-
-    delay(1000);
+    delay(100);
 
     // go to sleep
     LowPower.standby();
