@@ -27,10 +27,12 @@ void setup() {
 
   boardSetup(unusedPins_client);
 
-  // Begin serial comms
-  Serial.swap(1);
-  Serial.begin(9600);
-  delay(5000);
+  if (PRINT_SERIAL) {
+    // Begin serial comms
+    Serial.swap(1);
+    Serial.begin(9600);
+    delay(5000);
+  }
 
   // init the temperature sensors
   initTemps();

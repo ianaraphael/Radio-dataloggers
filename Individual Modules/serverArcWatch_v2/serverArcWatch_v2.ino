@@ -20,11 +20,11 @@ ian.a.raphael.th@dartmouth.edu
 #include "SnowTATOS.h"
 #include "SnowTATOS_i2c.h"
 
-// declare a buffer to hold simb data
-uint8_t simbData[SIMB_DATASIZE];
+// declare a buffer to hold simb data. make it volatile to force retrieval from mem
+volatile uint8_t simbData[SIMB_DATASIZE];
 
 #if (STATION_ID != 0)
-  #error Server STATION_ID must be 0!
+#error Server STATION_ID must be 0!
 #endif
 
 
@@ -34,21 +34,26 @@ void setup() {
 
   boardSetup(unusedPins_server);
 
-  // Begin serial comms
-  Serial.swap(1);
-  Serial.begin(9600);
-  delay(10000);
+  if (PRINT_SERIAL) {
+    // Begin serial comms
+    Serial.swap(1);
+    Serial.begin(9600);
+    delay(10000);
+  }
 
   // init the realtime counter
   init_RTC();
 
   // init the radio
   if(!init_Radio()) {
-    Serial.println(F("Failed to init radio."));
+    if (PRINT_SERIAL) {
+      Serial.println(F("Failed to init radio."));
+    }
     while(1) {
       digitalWrite(LED_BUILTIN,HIGH);
       delay(250);
       digitalWrite(LED_BUILTIN,LOW);
+      delay(250);
     }
   }
 
@@ -60,17 +65,23 @@ void setup() {
 
   init_I2C_scSide();
 
-  // print success
-  Serial.print(F("Server #"));
-  Serial.print(SIMB_ID,DEC);
-  Serial.println(F(" initialized successfully"));
+  if (PRINT_SERIAL) {
+    // print success
+    Serial.print(F("Server #"));
+    Serial.print(SIMB_ID,DEC);
+    Serial.println(F(" initialized successfully"));
+  }
 }
 
 
 // ******************************* main loop ******************************* //
 void loop() {
 
-  // Serial.begin(9600);
+  if (PRINT_SERIAL) {
+    Serial.swap(1);
+    Serial.begin(9600);
+    delay(5000);
+  }
 
   // if we're not supposed to be sleeping
   if (!timeToSleep) {
@@ -78,7 +89,9 @@ void loop() {
     // if we just woke up
     if (justWokeUp) {
 
-      Serial.println(F("Just woke up! Broadcasting sync message to network..."));
+      if (PRINT_SERIAL) {
+        Serial.println(F("Just woke up! Broadcasting sync message to network..."));
+      }
 
       // set alarm for duration to stay awake
       setWakeAlarm(SERVER_WAKE_DURATION);
@@ -97,7 +110,9 @@ void loop() {
       // start listening for radio traffic
       radio.startReceive();
 
-      Serial.println(F("Listening for network radio traffic."));
+      if (PRINT_SERIAL) {
+        Serial.println(F("Listening for network radio traffic."));
+      }
     }
 
     // ************************ client radio comms ************************ //
@@ -111,16 +126,18 @@ void loop() {
     // if we got data
     if (stnID != -1) {
 
-      Serial.print(F("Received data from stn "));
-      Serial.println(stnID);
-      Serial.println("");
+      if (PRINT_SERIAL) {
+        Serial.print(F("Received data from stn "));
+        Serial.println(stnID);
+        Serial.println("");
 
-      Serial.println(F("Raw data: "));
-      for (int i=0; i<CLIENT_DATA_SIZE;i++){
-        Serial.print(" 0x");
-        Serial.print(currData[i],HEX);
+        Serial.println(F("Raw data: "));
+        for (int i=0; i<CLIENT_DATA_SIZE;i++){
+          Serial.print(" 0x");
+          Serial.print(currData[i],HEX);
+        }
+        Serial.println(F(""));
       }
-      Serial.println(F(""));
 
       // find the start byte in the simb buffer for this station
       int startByte = (stnID-1)*CLIENT_DATA_SIZE;
@@ -136,21 +153,27 @@ void loop() {
         // unpack and print the temp data
         float temps[NUM_TEMP_SENSORS];
         unpackTempData(simbData,temps,stnID);
-        Serial.println(F("  Temps:"));
-        for (int i=0; i<NUM_TEMP_SENSORS;i++){
-          Serial.println(temps[i],3);
+        if (PRINT_SERIAL) {
+          Serial.println(F("  Temps:"));
+          for (int i=0; i<NUM_TEMP_SENSORS;i++){
+            Serial.println(temps[i],3);
+          }
         }
       }
 
       // unpack and print the pinger data
       uint16_t pingerValue = unpackPingerData(simbData,stnID);
-      Serial.print(F("  Pinger: "));
-      Serial.println(pingerValue);
+      if (PRINT_SERIAL) {
+        Serial.print(F("  Pinger: "));
+        Serial.println(pingerValue);
+      }
 
       // unpack and print the voltage
       float voltage = unpackVoltageData(simbData,stnID);
-      Serial.print(F("  Voltage: "));
-      Serial.println(voltage,1); // 1 decimal place
+      if (PRINT_SERIAL) {
+        Serial.print(F("  Voltage: "));
+        Serial.println(voltage,1); // 1 decimal place
+      }
     }
   }
 
@@ -177,33 +200,35 @@ void loop() {
       // set the alarm
       setSleepAlarm(SAMPLING_INTERVAL_MIN);
 
-      Serial.print(F("Going to sleep for "));
-      Serial.print(SAMPLING_INTERVAL_MIN-SERVER_WAKE_DURATION,DEC);
-      Serial.println(F(" minutes"));
+      if (PRINT_SERIAL) {
+        Serial.print(F("Going to sleep for "));
+        Serial.print(SAMPLING_INTERVAL_MIN-SERVER_WAKE_DURATION,DEC);
+        Serial.println(F(" minutes"));
+      }
     }
 
     // shut down the radio
     radio.sleep();
 
-    // Serial0.end();
-    pinMode(0,OUTPUT);
-    digitalWrite(0,LOW);
-    pinMode(1,OUTPUT);
-    digitalWrite(1,LOW);
+    // // Serial0.end();
+    // pinMode(0,OUTPUT);
+    // digitalWrite(0,LOW);
+    // pinMode(1,OUTPUT);
+    // digitalWrite(1,LOW);
+    //
+    // Serial1.end();
+    // pinMode(8,OUTPUT);
+    // digitalWrite(8,LOW);
+    // pinMode(9,OUTPUT);
+    // digitalWrite(9,LOW);
+    //
+    // Serial2.end();
+    // pinMode(24,OUTPUT);
+    // digitalWrite(24,LOW);
+    // pinMode(25,OUTPUT);
+    // digitalWrite(25,LOW);
 
-    Serial1.end();
-    pinMode(8,OUTPUT);
-    digitalWrite(8,LOW);
-    pinMode(9,OUTPUT);
-    digitalWrite(9,LOW);
-
-    Serial2.end();
-    pinMode(24,OUTPUT);
-    digitalWrite(24,LOW);
-    pinMode(25,OUTPUT);
-    digitalWrite(25,LOW);
-
-    delay(10);
+    delay(1000);
 
     // and go to sleep
     LowPower.standby();
