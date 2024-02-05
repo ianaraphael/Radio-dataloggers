@@ -38,7 +38,7 @@ void setup() {
     // Begin serial comms
     Serial.swap(1);
     Serial.begin(9600);
-    delay(10000);
+    delay(1000);
   }
 
   // init the realtime counter

@@ -34,8 +34,11 @@ void setup() {
     delay(5000);
   }
 
-  // init the temperature sensors
-  initTemps();
+  // if there are any temps sensors
+  if (NUM_TEMP_SENSORS > 0) {
+    // init them
+    initTemps();
+  }
 
   // init the realtime clock
   init_RTC();
@@ -60,22 +63,22 @@ void setup() {
     Serial.println(F(" initialized succesfully."));
   }
 
-  // flash for simb ID
+  // flash LED for simb ID
   for (int i=0;i<SIMB_ID;i++) {
     digitalWrite(LED_BUILTIN,HIGH);
-    delay(750);
+    delay(500);
     digitalWrite(LED_BUILTIN,LOW);
-    delay(750);
+    delay(500);
   }
 
   delay(2000);
 
-  // flash for station ID
+  // flash LED for station ID
   for (int i=0;i<STATION_ID;i++) {
     digitalWrite(LED_BUILTIN,HIGH);
-    delay(750);
+    delay(500);
     digitalWrite(LED_BUILTIN,LOW);
-    delay(750);
+    delay(500);
   }
 
 
@@ -91,14 +94,6 @@ void loop() {
 
   // read the pinger data before anything else to avoid serial interference
   volatile uint16_t pingerData = readPinger();
-
-  // flash the light
-  for (int i=0;i<STATION_ID;i++){
-    digitalWrite(LED_BUILTIN,HIGH);
-    delay(500);
-    digitalWrite(LED_BUILTIN,LOW);
-    delay(500);
-  }
 
   if (PRINT_SERIAL){
     // make sure we're on the right serial pins
@@ -128,7 +123,6 @@ void loop() {
       Serial.println(F("Implicitly synced with server"));
     }
   }
-
 
   if (PRINT_SERIAL){
     // print off the pinger data
@@ -172,6 +166,9 @@ void loop() {
     }
     Serial.println("");
   }
+
+  // delay for a moment to reduce collisions
+  delay(1000*STATION_ID);
 
   // send the data
   if (PRINT_SERIAL){
